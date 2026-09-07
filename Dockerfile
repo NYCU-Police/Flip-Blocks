@@ -9,6 +9,7 @@ COPY server ./server
 ENV NODE_ENV=production
 ENV PORT=8787
 ENV DATA_DIR=/app/data
+ENV TRUST_PROXY=false
 RUN mkdir -p /app/data && chown node:node /app/data
 EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

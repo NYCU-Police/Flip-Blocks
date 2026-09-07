@@ -4,7 +4,7 @@
 
 ## 1. 上傳本次變更
 
-在儲存庫根目錄執行（本機已設定 `origin` 為 `git@github.com:yuxzs/Flip-Blocks.git`）：
+在儲存庫根目錄執行（請先把 `origin` 設成你的 Git 遠端）：
 
 ```sh
 git add README.md docs/index.html docs/style.css docs/game-core.js docs/game.js docs/network.js docs/lan-play.md docs/favicon.svg docs/.nojekyll docs/github-pages.md tests/game-core.test.cjs tests/network.test.cjs server/index.cjs package.json pnpm-lock.yaml .gitignore
@@ -17,14 +17,14 @@ git push origin main
 
 ## 2. 開啟 Pages（只需設定一次）
 
-1. 打開 [Flip-Blocks 儲存庫的 Pages 設定](https://github.com/yuxzs/Flip-Blocks/settings/pages)。
+1. 打開 GitHub 儲存庫的 **Settings → Pages**。
 2. 在 **Build and deployment → Source** 選擇 **Deploy from a branch**。
 3. **Branch** 選 **main**，資料夾選 **/docs**，按 **Save**。
 4. 等待 GitHub 顯示發佈完成；也可以到 **Actions → pages build and deployment** 查看進度。
 
 在沒有自訂網域的情況下，發佈後網址為：
 
-**[https://yuxzs.github.io/Flip-Blocks/](https://yuxzs.github.io/Flip-Blocks/)**
+**`https://<owner>.github.io/<repo>/`**
 
 這是預期的發佈位址，建立網頁檔案不代表它已上線。需完成推送及上述 Pages 設定。
 

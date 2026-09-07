@@ -85,7 +85,7 @@ test('empty rooms are recycled after the TTL and new rooms stop at the cap', asy
   const b = await open({ type: 'join', role: 'host', name: 'B1' });
   await b.wait(m => m.type === 'joined');
   const c = await open({ type: 'join', role: 'host', name: 'C1' });
-  assert.match((await c.wait(m => m.type === 'error')).message, /已滿/);
+  assert.equal((await c.wait(m => m.type === 'error')).message, '無法建立房間，請稍後再試。');
 });
 
 test('spectators receive state but cannot move pieces', async t => {

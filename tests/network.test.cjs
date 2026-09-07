@@ -81,6 +81,7 @@ test('server serves the game and rejects unrelated files and cross-origin upgrad
   assert.equal(body.ok, true);
   assert.equal(typeof body.uptime, 'number');
   assert.equal(body.rooms, 0);
+  assert.equal(body.maxRooms, undefined);
   const board = await fetch(`http://127.0.0.1:${port}/leaderboard`);
   assert.equal(board.status, 200);
   assert.deepEqual((await board.json()).rankings, []);

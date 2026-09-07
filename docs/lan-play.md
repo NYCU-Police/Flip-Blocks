@@ -10,7 +10,7 @@
 6. 每台裝置使用方向鍵或 WASD 操作自己的方塊，Enter / Space 直接落定；觸控只開放自己的面板。觀戰者沒有操作權。
 
 
-一台主機可同時開最多 50 間雙人房。暱稱會記住（`localStorage`）；同機與單人 AI 不必輸入暱稱。大廳可開啟匿名勝場榜（前 20，同暱稱累計勝場）。
+一台主機可同時開多間雙人房，上限由環境變數調整。暱稱會記住（`localStorage`）；同機與單人 AI 不必輸入暱稱。大廳可開啟匿名勝場榜（前 20，同暱稱累計勝場）。
 
 ## 暫停、再戰與斷線
 
@@ -36,7 +36,11 @@
 | S→C | `reconnect-waiting` / `reconnected` / `reconnect-timeout` | 重連狀態。 |
 | S→C | `error` | 驗證失敗或滿房等；隨後斷線。 |
 
-輸入驗證：暱稱去掉控制字元與首尾空白後須為 2–12 字；房間代碼須符合字元集；字串欄位超過 64 字、非法 JSON、或每連線每秒超過 30 則訊息會直接斷線。`GET /leaderboard` 只回 `{ rankings: [{ name, wins }] }`，不含 token 或內部狀態。
+輸入驗證：暱稱去掉控制字元與首尾空白後須為 2–12 字；房間代碼須符合字元集；字串欄位超過 64 字、非法 JSON、訊息超過 4KB、或每連線每秒超過 30 則會直接斷線。未加入房間的連線若 30 秒沒有有效訊息會被切斷。拒絕原因是固定短字串，不會回顯使用者輸入。
+
+公開上線時同一 IP 的房間數、WebSocket 數與建房／查詢頻率都有上限（`MAX_ROOMS_PER_IP` 等，見 `.env.example`），超出回固定文案「無法建立房間，請稍後再試」或 HTTP `429`，不透露閾值。`GET /leaderboard` 只回 `{ rankings: [{ name, wins }] }`，`Cache-Control: public, max-age=30`，不含 token 或內部狀態；頁面以 `textContent` 顯示暱稱以防 XSS。
+
+訪客 IP：`TRUST_PROXY` 預設關閉，使用 socket 遠端位址（本機／Tailscale 直連）。經 Cloudflare Tunnel 時在本機 `.env` 開啟 `TRUST_PROXY`，改讀 `CF-Connecting-IP` 或 `X-Forwarded-For` 第一值。
 
 排行榜由伺服器在連線對局結算時寫入 SQLite（`DATA_DIR`，預設 `./data`），同一房間同一局（`match_key`）只記一次，不接受客戶端上報結果。
 
@@ -45,7 +49,7 @@
 - **只有自己能連：** 朋友需用房主的區域網路 IP，不能使用 `localhost` 或 `127.0.0.1`。若電腦有 VPN／多張網卡，選擇與朋友相同網段的位址。
 - **無法連線：** 確認主機正在執行、IP／連接埠正確、作業系統防火牆允許 Node.js 的 TCP 8787 連線。訪客 Wi-Fi 或 AP 隔離可能禁止裝置互連。
 - **連接埠被占用：** macOS／Linux 可用 `PORT=9000 npm start`；Windows PowerShell 使用 `$env:PORT=9000; npm start`。朋友的位址也需改為 `主機IP:9000`。
-- **房間已滿：** 主機同時最多 50 間房。空房約 5 分鐘後回收。
+- **無法建立房間：** 可能已達主機或該位址的上限，請稍後再試。空房逾時後會回收。
 - **GitHub Pages 或直接開啟 HTML：** 同機／AI 可直接玩。連線需前往主機提供的 HTTP 頁面。
 - **不同網路：** 請先透過可互通的私人 VPN 連至同一網路。本版本沒有公網中繼、NAT 穿透或 LAN 自動搜尋。
 
@@ -56,4 +60,4 @@ npm install
 npm test
 ```
 
-`server/index.cjs` 使用 [ws](https://github.com/websockets/ws) 與 [better-sqlite3](https://github.com/WiseLibs/better-sqlite3)。伺服器每 50ms 更新各房間；落定、勝負與房間事件廣播壓縮快照，平時送較小的 `tick`。測試涵蓋多房間隔離、代碼拒絕、房間回收、觀戰不能操作、暱稱驗證、排行榜去重與速率限制，以及既有的重連與規則測試。
+`server/index.cjs` 使用 [ws](https://github.com/websockets/ws) 與 [better-sqlite3](https://github.com/WiseLibs/better-sqlite3)。伺服器每 50ms 更新各房間；落定、勝負與房間事件廣播壓縮快照，平時送較小的 `tick`。每 10 分鐘在 stdout 打一行房間數、連線數與各類拒絕次數。測試涵蓋多房間隔離、每 IP 上限、建房頻率、HTTP 429、訊息大小與閒置斷線，以及既有的重連與規則測試。

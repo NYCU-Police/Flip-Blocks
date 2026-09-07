@@ -1,8 +1,9 @@
-# 拉取式部署：推 main 後 CI 會發布 ghcr.io 映像，Watchtower 每 5 分鐘檢查並更新。
+# 拉取式部署：推 main 後 CI 會發布映像，Watchtower 定期檢查並更新。
 # 請把映像路徑改成你的 GitHub 擁有者／儲存庫（皆小寫）。
+# 限額與 TRUST_PROXY 請放本機 .env（由 .env.example 複製），不要寫進此範例。
 services:
   flip-blocks:
-    image: ghcr.io/nycu-police/flip-blocks:latest
+    image: "ghcr.io/<owner>/<repo>:latest"
     container_name: flip-blocks
     ports:
       - "8787:8787"
@@ -10,6 +11,14 @@ services:
     environment:
       PORT: "8787"
       DATA_DIR: /app/data
+      TRUST_PROXY: ${TRUST_PROXY}
+      MAX_ROOMS: ${MAX_ROOMS}
+      MAX_ROOMS_PER_IP: ${MAX_ROOMS_PER_IP}
+      MAX_SOCKETS_PER_IP: ${MAX_SOCKETS_PER_IP}
+      CREATE_PER_MIN: ${CREATE_PER_MIN}
+      HTTP_PER_MIN: ${HTTP_PER_MIN}
+      MAX_CLIENTS: ${MAX_CLIENTS}
+      RATE_LIMIT: ${RATE_LIMIT}
     volumes:
       - ./data:/app/data
     labels:

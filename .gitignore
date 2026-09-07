@@ -58,6 +58,8 @@ sysinfo.txt
 .env.*
 !.env.example
 !.env.sample
+*.local.yml
+*.local.yaml
 *.keystore
 *.jks
 *.p12

@@ -8,7 +8,7 @@
 
 發佈方式：將變更推送到 GitHub，然後到儲存庫 **Settings → Pages**，選 **Deploy from a branch → main → /docs → Save**。
 
-完成 Pages 設定後的遊戲網址：[yuxzs.github.io/Flip-Blocks](https://yuxzs.github.io/Flip-Blocks/)。
+完成 Pages 設定後的遊戲網址為 `https://<owner>.github.io/<repo>/`。
 
 完整步驟與網頁版規則請見 [GitHub Pages 發佈說明](docs/github-pages.md)。
 
@@ -27,7 +27,7 @@ npm start
 2. 另一位玩家連上同一 Wi-Fi，開啟 `http://主機IP:8787`，輸入暱稱與房間代碼後按「加入房間」；知道代碼者也可按「觀戰」。
 3. 雙方按「我準備好了」，房主再按「房主開始對戰」。房主可選黑／白；換色後雙方需重新準備。
 
-連線時方向鍵或 WASD 都控制自己，Enter / Space 落定，也支援觸控。棋盤、方塊、勝負與暫停由主機同步。對局中斷線可在 60 秒內以工作階段憑證回到**原房間原座位**；雙方離開後房間保留 5 分鐘供重連或再戰。主機最多 50 間房間。連線對局結果會記入匿名勝場榜（同暱稱累計），同機與 AI 對局不上傳。原本同機／AI 模式仍可直接開啟 `docs/index.html`，不用暱稱或套件。
+連線時方向鍵或 WASD 都控制自己，Enter / Space 落定，也支援觸控。棋盤、方塊、勝負與暫停由主機同步。對局中斷線可在 60 秒內以工作階段憑證回到**原房間原座位**；雙方離開後房間保留 5 分鐘供重連或再戰。主機與同一 IP 的房間、連線、查詢頻率皆有上限（可由環境變數覆蓋，見 `.env.example`）。經 Cloudflare Tunnel 公開時在本機 `.env` 開啟 `TRUST_PROXY`，直連或 Tailscale 保持關閉。連線對局結果會記入匿名勝場榜（同暱稱累計），同機與 AI 對局不上傳。原本同機／AI 模式仍可直接開啟 `docs/index.html`，不用暱稱或套件。
 
 **GitHub Pages 僅提供靜態遊戲，連線對戰需有一台電腦執行主機。** IP 欄可帶上房間代碼前往該主機。沒有自動掃描 LAN 或跨網際網路配對。更多協定與排錯請見 [連線對戰說明](docs/lan-play.md)。Docker 部署見 [拉取式部署說明](docs/deploy.md)。
 
