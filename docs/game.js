@@ -21,16 +21,25 @@
     if(wasNetwork&&!network.active) {stopAI();playMode=selectedMode();clearInput();game.state='ready';}
     wasNetwork=network.active;
     const joined=network.owner!==null, both=network.connected.every(Boolean);
-    $('mode-label').textContent=network.active?'區域網路對戰':(playMode==='ai'?'單人對戰 AI':'同機雙人對戰');
-    $('host').disabled=network.active;$('join').disabled=network.active;
+    $('mode-label').textContent=network.active?(network.spectating?'觀戰中':`連線房間 ${network.code||''}`):(playMode==='ai'?'單人對戰 AI':'同機雙人對戰');
+    $('host').disabled=network.active;$('join').disabled=network.active;$('spectate').disabled=network.active;
     $('join-ip').disabled=network.active;$('server-address').disabled=network.active;
-    $('leave').hidden=!network.active;$('ready').hidden=!joined||game.state!=='ready'||network.reconnect||network.pendingReconnect;
+    $('nickname').disabled=network.active;$('room-code-input').disabled=network.active;
+    $('leave').hidden=!network.active;$('ready').hidden=!joined||network.spectating||game.state!=='ready'||network.reconnect||network.pendingReconnect;
     $('ready').textContent=network.ready[network.owner]?'取消準備':'我準備好了';
     const secs=remainSecs();
-    $('network-status').textContent=network.message||(joined?
+    const names=network.names||['',''];
+    $('network-status').textContent=network.message||(network.active?
       (network.reconnect?`對方斷線，等待重連中（剩餘 ${secs} 秒）`:
-      `你是玩家${network.owner+1} · ${both?'雙方已連線':'等待玩家二加入'} · P1 ${network.ready[0]?'已準備':'未準備'} / P2 ${network.ready[1]?'已準備':'未準備'}`):
-      '尚未連線。每個主機提供一間雙人房。');
+      network.spectating?`觀戰房間 ${network.code} · ${names[0]||'玩家一'} vs ${names[1]||'玩家二'}`:
+      `房間 ${network.code} · 你是${names[network.owner]||('玩家'+(network.owner+1))} · ${both?'雙方已連線':'等待對手'} · ${names[0]||'P1'} ${network.ready[0]?'已準備':'未準備'} / ${names[1]||'P2'} ${network.ready[1]?'已準備':'未準備'}`):
+      '尚未連線。輸入暱稱後可建立或加入房間。');
+    $('room-code-line').hidden=!network.active||!network.code;
+    $('room-code-display').textContent=network.code||'';
+    const watchers=$('watchers');
+    watchers.hidden=!network.active;
+    const extra=network.spectatorNames?.length?`：${network.spectatorNames.join('、')}`:'';
+    watchers.textContent=`觀戰 ${network.spectators||0} 人${extra}`;
     for(let owner=0;owner<2;owner++) {
       const panel=document.querySelector(owner===0?'.player-one':'.player-two');
       panel.classList.toggle('remote',joined&&owner!==network.owner);
@@ -45,20 +54,28 @@
     clearInput();game.state='ready';
     $('network-panel').open=true;
     if(!['http:','https:'].includes(location.protocol)) {
-      network.message='請先執行 npm start，開啟 http://localhost:8787 建立房間；朋友可在上方輸入主機 IP。';networkChanged();return;
+      network.message='請先執行 npm start，開啟 http://localhost:8787 建立房間；朋友可在上方輸入主機 IP 與房間代碼。';networkChanged();return;
     }
-    network.connect(role,Number(document.querySelector('input[name="color"]:checked').value));
+    const name=FlipNetwork.parseName($('nickname').value);
+    if(!name) {network.message='請輸入 2–12 字暱稱。';networkChanged();return;}
+    FlipNetwork.saveName(name);
+    const code=FlipNetwork.parseCode($('room-code-input').value);
+    if(role!=='host'&&!code) {network.message='請輸入 6 位房間代碼（不含 0/O/1/I）。';networkChanged();return;}
+    network.connect(role,{color:Number(document.querySelector('input[name="color"]:checked').value),name,code});
   }
   $('host').addEventListener('click',()=>connect('host'));
   $('join').addEventListener('click',()=>connect('guest'));
+  $('spectate').addEventListener('click',()=>connect('spectate'));
   $('ready').addEventListener('click',()=>network.send({type:'ready'}));
   $('leave').addEventListener('click',()=>{network.leave();network.message='已離開連線，可開始同機對戰。';networkChanged();reset(true);});
   $('join-form').addEventListener('submit',event=>{
     event.preventDefault();
     try {
       const url=FlipNetwork.serverAddress($('server-address').value);
-      if(url.origin===location.origin) connect('guest');
-      else {url.searchParams.set('join','1');location.assign(url.href);}
+      const code=FlipNetwork.parseCode($('room-code-input').value);
+      if(code) url.searchParams.set('room',code);
+      if(url.origin===location.origin) connect(code?'guest':'host');
+      else location.assign(url.href);
     } catch(error) {network.message=error.message;networkChanged();}
   });
   if(['http:','https:'].includes(location.protocol)) $('server-address').value=location.origin;
@@ -108,9 +125,11 @@
     const aiOn=(playMode==='ai'||selectedMode()==='ai')&&!network.active;
     $('difficulty-picker').hidden=!aiOn||game.state!=='ready';
     document.querySelector('.player-two .player-tag').textContent=aiOn?'CPU AI':'PLAYER 02';
-    document.querySelector('.player-two').classList.toggle('remote',aiOn||(network.active&&network.owner!==1));
-    const heading=$('p2-heading');
-    if(heading) heading.childNodes[0].textContent=aiOn?'電腦 AI ':'玩家二 ';
+    document.querySelector('.player-two').classList.toggle('remote',aiOn||(network.active&&network.owner!==1)||network.spectating);
+    const p1=network.active&&network.names?.[0]?network.names[0]:'玩家一';
+    const p2=aiOn?'電腦 AI':(network.active&&network.names?.[1]?network.names[1]:'玩家二');
+    $('p1-name').textContent=p1;
+    $('p2-name').textContent=p2;
     const guide=document.querySelector('.player-two .control-guide');
     if(guide) guide.querySelector('h3').textContent=aiOn?'電腦對手':'操作方式';
     if(!network.active) $('mode-label').textContent=aiOn?'單人對戰 AI':'同機雙人對戰';
@@ -127,6 +146,7 @@
     if(!ready) board.focus({preventScroll:true});
   }
   function owns(owner) {
+    if(network.spectating) return false;
     if(network.active) return network.owner===owner;
     if(playMode==='ai') return owner===0;
     return true;
@@ -142,6 +162,7 @@
     render();
   }
   function togglePause() {
+    if(network.spectating) return;
     clearInput();
     if(network.active) {network.send({type:game.state==='paused'?'resume':'pause'});return;}
     game.pause();render();
@@ -197,7 +218,7 @@
       cueMatch(counts);previousLocks=locked;
     }
     if(game.state==='over') cueMatch(counts);
-    const stateKey=JSON.stringify([game.state,network.active,network.owner,network.connected,network.ready,game.sides[0].color,remainSecs(),network.pendingReconnect,network.message,playMode,selectedDifficulty()]);
+    const stateKey=JSON.stringify([game.state,network.active,network.owner,network.connected,network.ready,game.sides[0].color,remainSecs(),network.pendingReconnect,network.message,playMode,selectedDifficulty(),network.code,network.names,network.spectating,network.spectators]);
     if(stateKey===previousState) return;
     previousState=stateKey;
     const ready=game.state==='ready', paused=game.state==='paused', over=game.state==='over';
@@ -206,7 +227,7 @@
     $('color-picker').hidden=!ready||waiting||restoring;
     $('mode-picker').hidden=!ready||waiting||restoring||network.active;
     $('difficulty-picker').hidden=!ready||waiting||restoring||network.active||selectedMode()!=='ai';
-    $('pause').disabled=ready||over||waiting||restoring;$('restart').disabled=ready||waiting||restoring||(network.active&&network.owner!==0);
+    $('pause').disabled=ready||over||waiting||restoring||network.spectating;$('restart').disabled=ready||waiting||restoring||network.spectating||(network.active&&network.owner!==0);
     $('start').disabled=false;
     document.querySelectorAll('input[name="color"]').forEach(input=>{
       input.disabled=network.active&&network.owner!==0;
@@ -249,16 +270,21 @@
       $('ready').hidden=network.owner===null||!ready;
       if(ready) {
         clearInput();
-        $('overlay-title').textContent=network.owner===null?'正在連線…':'連線房間';
-        $('overlay-description').textContent=network.connected.every(Boolean)?'雙方按「我準備好了」，再由房主開始。':'等待對手加入。將主機 IP 告訴朋友。';
-        $('start').textContent='房主開始對戰';
-        $('start').disabled=network.owner!==0||!network.connected.every(Boolean)||!network.ready.every(Boolean);
-        $('overlay-note').textContent='準備按鈕位於上方「區域網路 / IP 連線對戰」';
-        $('match-status').textContent='等待雙方準備';
+        $('overlay-title').textContent=network.spectating?`觀戰 ${network.code}`:(network.owner===null?'正在連線…':`房間 ${network.code}`);
+        $('overlay-description').textContent=network.spectating?`${network.names[0]||'玩家一'} vs ${network.names[1]||'玩家二'}`:
+          (network.connected.every(Boolean)?'雙方按「我準備好了」，再由房主開始。':`把房間代碼 ${network.code} 與主機 IP 告訴朋友。`);
+        $('start').textContent=network.spectating?'觀戰中':'房主開始對戰';
+        $('start').disabled=network.spectating||network.owner!==0||!network.connected.every(Boolean)||!network.ready.every(Boolean);
+        $('overlay-note').textContent=network.spectating?'觀戰無法操作':'準備按鈕位於上方連線面板';
+        $('match-status').textContent=network.spectating?'觀戰中':'等待雙方準備';
       } else if(over) {
-        $('start').textContent=network.owner===0?'再戰 / 重新準備':'等待房主開啟新對局';
-        $('start').disabled=network.owner!==0;
-        $('overlay-note').textContent='再戰需雙方重新準備';
+        const names=network.names||[];
+        if(names[game.winner]) $('overlay-title').textContent=`${names[game.winner]} 獲勝！`;
+        $('start').textContent=network.spectating?'觀戰中':(network.owner===0?'再戰 / 重新準備':'等待房主開啟新對局');
+        $('start').disabled=network.spectating||network.owner!==0;
+        $('overlay-note').textContent=network.spectating?'觀戰無法操作':'再戰需雙方重新準備';
+      } else if(network.spectating) {
+        $('start').textContent='觀戰中';$('start').disabled=true;
       }
     }
   }
@@ -298,7 +324,7 @@
     button.addEventListener('pointerup',release);button.addEventListener('pointercancel',release);button.addEventListener('lostpointercapture',release);
     button.addEventListener('click',event=>{if(event.detail===0) {const owner=Number(button.dataset.owner);action(owner,button.dataset.action==='soft'?'step':button.dataset.action);render();}});
   });
-  function autoPause() {clearInput();if(game.state==='playing') {if(network.active) network.send({type:'pause'});else game.pause();render();}}
+  function autoPause() {if(network.spectating) return;clearInput();if(game.state==='playing') {if(network.active) network.send({type:'pause'});else game.pause();render();}}
   window.addEventListener('blur',autoPause);
   document.addEventListener('visibilitychange',()=>{if(document.hidden) autoPause();});
   const repeats=new Map();
@@ -349,8 +375,30 @@
     const radio=document.querySelector(`input[name="difficulty"][value="${savedDiff}"]`);
     if(radio) radio.checked=true;
   }
+  const savedName=FlipNetwork.loadName();
+  if(savedName) $('nickname').value=savedName;
+  async function refreshLeaderboard() {
+    if(!['http:','https:'].includes(location.protocol)) return;
+    try {
+      const data=await (await fetch('/leaderboard')).json();
+      const list=$('leaderboard-list');
+      list.textContent='';
+      if(!data.rankings?.length) {const empty=document.createElement('li');empty.className='muted';empty.textContent='尚無連線對局紀錄';list.append(empty);return;}
+      for(const row of data.rankings) {
+        const item=document.createElement('li');
+        item.textContent=`${row.name} · ${row.wins} 勝`;
+        list.append(item);
+      }
+    } catch {}
+  }
+  $('leaderboard-panel').addEventListener('toggle',()=>{if($('leaderboard-panel').open) refreshLeaderboard();});
   syncMute();syncModeUi();refreshRecord();
   render();requestAnimationFrame(frame);
-  const joining=new URLSearchParams(location.search).get('join')==='1';
-  if(!(['http:','https:'].includes(location.protocol)&&network.resumeSession())&&joining) connect('guest');
+  const params=new URLSearchParams(location.search);
+  const roomParam=FlipNetwork.parseCode(params.get('room')||'');
+  const watchParam=FlipNetwork.parseCode(params.get('watch')||'');
+  if(roomParam) $('room-code-input').value=roomParam;
+  const resumed=['http:','https:'].includes(location.protocol)&&network.resumeSession();
+  if(!resumed&&roomParam) connect('guest');
+  else if(!resumed&&watchParam) {$('room-code-input').value=watchParam;connect('spectate');}
 })();

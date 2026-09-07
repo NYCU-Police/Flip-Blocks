@@ -25,18 +25,23 @@
     <details class="network-panel" id="network-panel">
       <summary>區域網路 / IP 連線對戰 <span>跨裝置一起玩 ↗</span></summary>
       <div class="network-content">
-        <p>房主先在電腦執行 <code>npm install</code>、<code>npm start</code>，開啟終端機顯示的網址建立房間。朋友連上同一 Wi-Fi，輸入房主的 IP 即可加入。</p>
-        <form id="join-form" class="network-address"><label for="server-address">主機 IP / 位址</label><input id="server-address" type="text" placeholder="192.168.1.20:8787" autocomplete="off" spellcheck="false" required><button class="quiet" id="join-ip" type="submit">輸入 IP 加入</button></form>
-        <div class="network-actions"><button class="quiet" id="host" type="button">建立房間（玩家一）</button><button class="quiet" id="join" type="button">加入此主機（玩家二）</button><button class="quiet" id="ready" type="button" hidden>準備</button><button class="quiet" id="leave" type="button" hidden>離開連線 / 同機模式</button></div>
+        <p>執行 <code>npm start</code> 後開啟本機網址。建立房間會得到 6 位代碼，把代碼與主機 IP 傳給朋友即可加入或觀戰。</p>
+        <div class="network-address"><label for="nickname">暱稱</label><input id="nickname" type="text" maxlength="12" minlength="2" placeholder="2–12 個字" autocomplete="nickname" spellcheck="false"></div>
+        <form id="join-form" class="network-address"><label for="server-address">主機 IP / 位址</label><input id="server-address" type="text" placeholder="192.168.1.20:8787" autocomplete="off" spellcheck="false" required><button class="quiet" id="join-ip" type="submit">前往主機</button></form>
+        <div class="network-address"><label for="room-code-input">房間代碼</label><input id="room-code-input" type="text" maxlength="6" placeholder="例如 A3K7QX" autocomplete="off" spellcheck="false"></div>
+        <div class="network-actions"><button class="quiet" id="host" type="button">建立房間</button><button class="quiet" id="join" type="button">加入房間</button><button class="quiet" id="spectate" type="button">觀戰</button><button class="quiet" id="ready" type="button" hidden>準備</button><button class="quiet" id="leave" type="button" hidden>離開連線 / 同機模式</button></div>
+        <p id="room-code-line" class="session-record" hidden>房間代碼 <strong id="room-code-display"></strong></p>
+        <p id="watchers" class="session-record" hidden>觀戰 0 人</p>
         <p id="session-record" class="session-record">本機戰績 玩家一 0 勝 · 玩家二 0 勝</p>
-        <p id="network-status" role="status">尚未連線。每個主機提供一間雙人房。</p>
-        <p class="network-hint">連線時，方向鍵或 WASD 都可操作自己，Enter / Space 落定。雙方準備後由房主開始；換色及再戰需重新準備。對局中斷線可在 60 秒內自動重連。</p>
+        <p id="network-status" role="status">尚未連線。輸入暱稱後可建立或加入房間。</p>
+        <details class="leaderboard-panel" id="leaderboard-panel"><summary>匿名排行榜 <span>勝場前 20</span></summary><ol id="leaderboard-list"><li class="muted">尚無連線對局紀錄</li></ol></details>
+        <p class="network-hint">連線時方向鍵或 WASD 都可操作自己，Enter / Space 落定。雙方準備後由房主開始。對局中斷線可在 60 秒內重連回同一房間；雙方離開後房間保留 5 分鐘。同機與 AI 對局不會上傳排行榜。</p>
       </div>
     </details>
     <div class="arena">
       <section class="player player-one" aria-labelledby="p1-heading">
         <div class="player-top"><span class="player-tag">PLAYER 01</span><span class="player-dot"></span></div>
-        <h2 id="p1-heading">玩家一 <span id="p1-color">黑方 ↓</span></h2>
+        <h2 id="p1-heading"><span id="p1-name">玩家一</span> <span id="p1-color">黑方 ↓</span></h2>
         <div class="score"><strong id="p1-score">50</strong><span>% 佔領</span></div>
         <div class="mini-meter"><i id="p1-meter"></i><span></span></div>
         <p class="target">勝利目標 <b>70%</b></p>
@@ -62,7 +67,7 @@
       </section>
       <section class="player player-two" aria-labelledby="p2-heading">
         <div class="player-top"><span class="player-tag">PLAYER 02</span><span class="player-dot"></span></div>
-        <h2 id="p2-heading">玩家二 <span id="p2-color">白方 ↑</span></h2>
+        <h2 id="p2-heading"><span id="p2-name">玩家二</span> <span id="p2-color">白方 ↑</span></h2>
         <div class="score"><strong id="p2-score">50</strong><span>% 佔領</span></div>
         <div class="mini-meter"><i id="p2-meter"></i><span></span></div>
         <p class="target">勝利目標 <b>70%</b></p>
