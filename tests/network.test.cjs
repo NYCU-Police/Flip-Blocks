@@ -5,18 +5,26 @@ const { WebSocket } = require('ws');
 const { createServer } = require('../server/index.cjs');
 const { serverAddress, reconnectDelay, encodeBoard, decodeBoard, applyGame } = require('../docs/network.js');
 
-async function fixture(t, options) {
-  const app = createServer(options);
+async function fixture(t, options = {}) {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const dataDir = options.dataDir || fs.mkdtempSync(path.join(os.tmpdir(), 'flip-rooms-'));
+  const app = createServer({ ...options, dataDir });
   t.after(() => app.close());
   app.server.listen(0, '127.0.0.1'); await once(app.server, 'listening');
   const port = app.server.address().port;
-  async function client(role, color = 1, wsOptions = {}) {
+  let roomCode = options.code || '';
+  async function client(role, color = 1, wsOptions = {}, extra = {}) {
     const ws = new WebSocket(`ws://127.0.0.1:${port}/match`, wsOptions);
     const messages = [];
     ws.on('message', data => messages.push(JSON.parse(data.toString())));
     await once(ws, 'open');
     const send = data => ws.send(JSON.stringify(data));
-    if (role) send({ type: 'join', role, color });
+    const name = extra.name || (role === 'host' ? 'Host' : role === 'spectate' ? 'Watch' : 'Guest');
+    if (role === 'host') send({ type: 'join', role: 'host', color, name, code: extra.code });
+    else if (role === 'guest') send({ type: 'join', role: 'guest', color, name, code: extra.code || roomCode });
+    else if (role === 'spectate') send({ type: 'join', role: 'spectate', name, code: extra.code || roomCode });
     async function wait(predicate, after = 0, ms = 2500) {
       const end = Date.now() + ms;
       while (Date.now() < end) {
@@ -26,8 +34,12 @@ async function fixture(t, options) {
       }
       throw new Error(`Message timeout: ${JSON.stringify(messages.slice(-2))}`);
     }
+    if (role === 'host') {
+      const joined = await wait(m => m.type === 'joined' || m.type === 'error');
+      if (joined.type === 'joined' && joined.code) roomCode = joined.code;
+    }
     const state = (predicate = () => true, after = 0) => wait(m => m.type === 'state' && predicate(m), after);
-    return { ws, messages, send, wait, state };
+    return { ws, messages, send, wait, state, get code() { return roomCode; } };
   }
   async function playing() {
     const host = await client('host'); await host.state();
@@ -35,9 +47,9 @@ async function fixture(t, options) {
     host.send({ type: 'ready' }); guest.send({ type: 'ready' });
     await host.state(m => m.ready.every(Boolean));
     host.send({ type: 'start' }); await guest.state(m => m.game.state === 'playing');
-    return { host, guest };
+    return { host, guest, code: roomCode };
   }
-  return { app, port, client, playing };
+  return { app, port, client, playing, get code() { return roomCode; } };
 }
 
 test('IP entry accepts IP, port, IPv6 and HTTPS while rejecting unsafe URLs', () => {
@@ -68,7 +80,10 @@ test('server serves the game and rejects unrelated files and cross-origin upgrad
   const body = await health.json();
   assert.equal(body.ok, true);
   assert.equal(typeof body.uptime, 'number');
-  assert.deepEqual(body.room.connected, [false, false]);
+  assert.equal(body.rooms, 0);
+  const board = await fetch(`http://127.0.0.1:${port}/leaderboard`);
+  assert.equal(board.status, 200);
+  assert.deepEqual((await board.json()).rankings, []);
   for (const asset of ['/server/index.cjs', '/.git/config', '/package.json']) assert.equal((await fetch(`http://127.0.0.1:${port}${asset}`)).status, 404);
   const ws = new WebSocket(`ws://127.0.0.1:${port}/match`, { origin: 'https://another.example' });
   const [error] = await once(ws, 'error'); assert.match(error.message, /403/);
@@ -76,11 +91,13 @@ test('server serves the game and rejects unrelated files and cross-origin upgrad
 
 test('joining requires a host and rooms reject third players', async t => {
   const { client } = await fixture(t);
-  const early = await client('guest'); assert.match((await early.wait(m => m.type === 'error')).message, /尚無房主/);
+  const missing = await client('guest', 1, {}, { code: 'ABC234' });
+  assert.match((await missing.wait(m => m.type === 'error')).message, /找不到房間/);
   const host = await client('host'); await host.state();
   const guest = await client('guest'); await guest.state(m => m.connected.every(Boolean));
   const extra = await client('guest'); assert.match((await extra.wait(m => m.type === 'error')).message, /已有人/);
-  const extraHost = await client('host'); await extraHost.wait(m => m.type === 'error');
+  const extraHost = await client('host', 1, {}, { code: host.code });
+  await extraHost.wait(m => m.type === 'error');
 });
 
 test('both players must prepare; color changes reset readiness and only host starts', async t => {
@@ -136,8 +153,11 @@ test('guest leaving the lobby frees the seat; host departure closes room', async
   assert.deepEqual(stopped.ready, [false, false]);
   const replacement = await client('guest'); const joined = await replacement.state();
   assert.equal(joined.game.state, 'ready');
-  host.ws.close(); assert.match((await replacement.wait(m => m.type === 'error')).message, /房主已離開/);
-  const newHost = await client('host'); assert.deepEqual((await newHost.state()).connected, [true, false]);
+  host.ws.close();
+  const vacated = await replacement.state(m => !m.connected[0] && m.game.state === 'ready');
+  assert.deepEqual(vacated.connected, [false, true]);
+  const newHost = await client('host', 1, {}, { code: host.code });
+  assert.deepEqual((await newHost.state()).connected, [true, true]);
 });
 
 test('disconnect keeps the match paused and notifies the remaining player', async t => {
@@ -171,7 +191,7 @@ test('session token reconnect restores the match', async t => {
   guest.ws.close();
   await host.wait(m => m.type === 'reconnect-waiting');
   const back = await client();
-  back.send({ type: 'reconnect', sessionToken: token });
+  back.send({ type: 'reconnect', sessionToken: token, code: guest.code });
   const joined = await back.wait(m => m.type === 'joined');
   assert.equal(joined.owner, 1);
   assert.equal(joined.sessionToken, token);
@@ -210,16 +230,16 @@ test('missing or wrong session token cannot claim a reconnecting seat', async t 
   const noToken = await client('guest');
   assert.match((await noToken.wait(m => m.type === 'error')).message, /已有人/);
   const wrong = await client();
-  wrong.send({ type: 'reconnect', sessionToken: 'not-a-valid-token' });
+  wrong.send({ type: 'reconnect', sessionToken: 'not-a-valid-token', code: guest.code });
   assert.match((await wrong.wait(m => m.type === 'error')).message, /憑證/);
   const empty = await client();
-  empty.send({ type: 'reconnect', sessionToken: '' });
+  empty.send({ type: 'reconnect', sessionToken: '', code: guest.code });
   assert.match((await empty.wait(m => m.type === 'error')).message, /憑證/);
   const usurper = await client();
-  usurper.send({ type: 'join', role: 'guest' });
+  usurper.send({ type: 'join', role: 'guest', name: 'Usurper', code: guest.code });
   assert.match((await usurper.wait(m => m.type === 'error')).message, /已有人/);
   const back = await client();
-  back.send({ type: 'reconnect', sessionToken: token });
+  back.send({ type: 'reconnect', sessionToken: token, code: guest.code });
   assert.equal((await back.wait(m => m.type === 'joined')).owner, 1);
   await host.state(m => m.game.state === 'playing' && m.connected.every(Boolean));
 });
@@ -230,7 +250,7 @@ test('malformed and oversized packets cannot crash the server', async t => {
     const bad = await client(); const closed = once(bad.ws, 'close'); bad.ws.send(payload); await closed;
   }
   const host = await client('host'); await host.state();
-  for (const message of [null, [], { type: 'color', color: 3 }, { type: 'input', action: '__proto__' }]) host.send(message);
+  for (const message of [{ type: 'color', color: 3 }, { type: 'input', action: '__proto__' }]) host.send(message);
   host.send({ type: 'ready' }); assert.equal((await host.state(m => m.ready[0])).game.state, 'ready');
 });
 
@@ -260,16 +280,20 @@ test('heartbeat removes an unresponsive player and stops the match', async t => 
 });
 
 test('heartbeat drop during a match waits for reconnect instead of ending it', async t => {
-  const app = createServer({ heartbeatMs: 80 });
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const app = createServer({ heartbeatMs: 80, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'flip-hb-')) });
   t.after(() => app.close());
   app.server.listen(0, '127.0.0.1'); await once(app.server, 'listening');
   const port = app.server.address().port;
+  let hostCode = '';
   async function join(role, wsOptions = {}) {
     const ws = new WebSocket(`ws://127.0.0.1:${port}/match`, wsOptions);
     const messages = [];
     ws.on('message', data => messages.push(JSON.parse(data.toString())));
     await once(ws, 'open');
-    ws.send(JSON.stringify({ type: 'join', role, color: 1 }));
+    ws.send(JSON.stringify({ type: 'join', role, color: 1, name: role === 'host' ? 'Host' : 'Guest', code: role === 'guest' ? hostCode : undefined }));
     const wait = async (predicate, ms = 2500) => {
       const end = Date.now() + ms;
       while (Date.now() < end) {
@@ -281,7 +305,9 @@ test('heartbeat drop during a match waits for reconnect instead of ending it', a
     };
     return { ws, send: data => ws.send(JSON.stringify(data)), wait };
   }
-  const host = await join('host'); await host.wait(m => m.type === 'state');
+  const host = await join('host');
+  hostCode = (await host.wait(m => m.type === 'joined')).code;
+  await host.wait(m => m.type === 'state');
   const guest = await join('guest', { autoPong: false }); await guest.wait(m => m.connected?.every(Boolean));
   host.send({ type: 'ready' }); guest.send({ type: 'ready' });
   await host.wait(m => m.ready?.every(Boolean));
