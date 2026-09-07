@@ -1,107 +1,143 @@
 # Flip Blocks / 翻轉方塊
 
-雙人方塊對戰遊戲，網頁版支援同機雙人、單人對戰 AI，以及區域網路 / IP 連線對戰，包含可直接在瀏覽器遊玩的網頁版，以及移植自 Codea/Lua 原型的 Unity 版。
+雙人領地爭奪：共用棋盤、推進方塊、切斷連結、翻轉顏色，率先佔領 70% 即獲勝。
 
-## 網頁版（GitHub Pages）
+## 立即遊玩
 
-用瀏覽器開啟 **`docs/index.html`** 即可遊玩，不需安裝 Unity 或其他套件。主選單可選**同機雙人**或**單人對戰 AI**（簡單／普通／困難，上次難度會記住）；玩家一使用方向鍵 + Enter，AI 操作玩家二。支援鍵盤、觸控按鈕、選色、下個方塊預覽、落點提示、音效、暫停與再戰；切換分頁或視窗會自動暫停（AI 也會停）。
-
-發佈方式：將變更推送到 GitHub，然後到儲存庫 **Settings → Pages**，選 **Deploy from a branch → main → /docs → Save**。
-
-完成 Pages 設定後的遊戲網址為 `https://<owner>.github.io/<repo>/`。
-
-完整步驟與網頁版規則請見 [GitHub Pages 發佈說明](docs/github-pages.md)。
+- **公開網站：** 部署完成後，用瀏覽器開啟 `https://<your-domain>/` 即可玩三種模式（含線上對戰）。請把佔位符換成你自己的網址，不要把實際網域寫進倉庫。
+- **GitHub Pages 靜態版：** 設定 **Settings → Pages → Deploy from a branch → main → /docs** 後，網址為 `https://<owner>.github.io/<repo>/`。靜態版可玩**同機雙人**與**單人對戰 AI**；線上對戰需要連線主機。步驟見 [GitHub Pages 發佈說明](docs/github-pages.md)。
+- **本機檔案：** 直接開啟 [`docs/index.html`](docs/index.html) 也能玩同機與 AI，不必安裝套件。
 
 ![本機雙人遊戲畫面](docs/screenshots/flip-blocks-local-2p.png)
 
-## 網頁版：區域網路 / IP 連線對戰
+## 模式總覽
 
-房主電腦安裝 Node.js 22 以上，在儲存庫根目錄執行：
+進入頁面先選一種方式：
+
+| 模式 | 說明 |
+| --- | --- |
+| 同機雙人 | 兩人共用一台裝置。玩家一用方向鍵 + Enter，玩家二用 WASD + Space，也支援觸控。 |
+| 單人對戰 AI | 你操作玩家一，電腦操作玩家二。可選簡單／普通／困難，上次難度會記住。 |
+| 線上對戰 | 輸入暱稱後建立房間或加入房間，也可觀戰。支援多房間、匿名排行榜，以及斷線後回到原座位。 |
+
+三種模式都有選色、下個方塊預覽、落點提示、音效、暫停與再戰；切換分頁或視窗會自動暫停。
+
+## 線上對戰
+
+玩家只要開已部署的網址（或自架主機提供的頁面），不必填主機 IP。
+
+1. 選「線上對戰」，輸入 2–12 字**暱稱**（會記住）。
+2. 按「建立房間」得到 6 位**房間代碼**（大寫字母與數字，不含 0/O/1/I），複製代碼或「分享連結」（`?room=代碼`）給朋友。
+3. 朋友開啟同一網站，輸入暱稱與房間代碼後按「加入房間」。知道代碼者也可「以觀戰加入」，只看狀態、不能操作。
+4. 雙方按「我準備好了」，房主選色並開始。換色後需重新準備。
+
+連線時方向鍵或 WASD 都控制自己，Enter / Space 落定。棋盤、勝負與暫停由主機同步。對局中斷線可在約 60 秒內回到**原房間原座位**；雙方離開後房間再保留一段時間供重連或再戰。連線對局會記入匿名**排行榜**（同暱稱累計勝場）；同機與 AI 不上傳。
+
+帶 `?room=` 的連結只會預填代碼，輸入暱稱後再加入。協定、重連細節與排錯見 [線上對戰說明](docs/lan-play.md)。
+
+## 自架主機
+
+線上對戰需要一台執行本專案的連線主機。GitHub Pages 或直接開 HTML 不能當主機。
+
+**用 Node.js（開發或臨時開房）：** 安裝 Node.js 22 以上，在專案根目錄執行：
 
 ```sh
 npm install
 npm start
 ```
 
-1. 房主開啟 [本機連線主機](http://localhost:8787)，展開「區域網路 / IP 連線對戰」，輸入暱稱後按「建立房間」，把 6 位房間代碼傳給朋友。
-2. 另一位玩家連上同一 Wi-Fi，開啟 `http://主機IP:8787`，輸入暱稱與房間代碼後按「加入房間」；知道代碼者也可按「觀戰」。
-3. 雙方按「我準備好了」，房主再按「房主開始對戰」。房主可選黑／白；換色後雙方需重新準備。
+然後開啟 `http://localhost:8787`。同一區域網路的朋友改連 `http://<主機位址>:8787`。連接埠被占用時可用 `PORT=9000 npm start`。
 
-連線時方向鍵或 WASD 都控制自己，Enter / Space 落定，也支援觸控。棋盤、方塊、勝負與暫停由主機同步。對局中斷線可在 60 秒內以工作階段憑證回到**原房間原座位**；雙方離開後房間保留 5 分鐘供重連或再戰。主機與同一 IP 的房間、連線、查詢頻率皆有上限（可由環境變數覆蓋，見 `.env.example`）。經 Cloudflare Tunnel 公開時在本機 `.env` 開啟 `TRUST_PROXY`，直連或 Tailscale 保持關閉。連線對局結果會記入匿名勝場榜（同暱稱累計），同機與 AI 對局不上傳。原本同機／AI 模式仍可直接開啟 `docs/index.html`，不用暱稱或套件。
+**用 Docker：** 依 [拉取式部署說明](docs/deploy.md) 啟動 `deploy/docker-compose.yml`。
 
-**GitHub Pages 僅提供靜態遊戲，連線對戰需有一台電腦執行主機。** IP 欄可帶上房間代碼前往該主機。沒有自動掃描 LAN 或跨網際網路配對。更多協定與排錯請見 [連線對戰說明](docs/lan-play.md)。Docker 部署見 [拉取式部署說明](docs/deploy.md)。
+環境變數從 [`.env.example`](.env.example) 複製成本機 `.env`（已列入 `.gitignore`），只填變數、不要把實際值提交進倉庫。常用項目：
 
-## 專案結構
+- `DATA_DIR`：排行榜 SQLite 目錄（容器內通常掛到 `/app/data`）。
+- `TRUST_PROXY`：直連、區域網路或 Tailscale 保持關閉；主機在 **Cloudflare Tunnel** 後方才開啟，改從 `CF-Connecting-IP` 取訪客 IP。
+- `MAX_ROOMS`、`MAX_ROOMS_PER_IP` 等：房間與頻率上限，部署值可與倉庫預設不同。
+
+進階「自架主機」欄位只在要連到**另一台**電腦上的主機時才需要填。
+
+## 部署
+
+推到 `main` 後，CI 會跑測試並把映像推到 GHCR；伺服器上的 Watchtower 再拉取更新。映像路徑、登入與排錯見 [拉取式部署說明](docs/deploy.md)。
+
+## 開發
+
+```sh
+npm install
+npm test
+```
 
 ```text
 .
+├── .env.example              # 環境變數名稱與說明（不含值）
 ├── .gitignore
 ├── .gitattributes
+├── .dockerignore
+├── Dockerfile
 ├── README.md
-├── FlipBlocksUnity/
-│   ├── Assets/             # 腳本、場景、Shader 及對應 .meta
-│   ├── Packages/           # 套件清單與版本鎖定檔
-│   ├── ProjectSettings/    # Unity 專案設定
+├── package.json              # npm start / npm test
+├── package-lock.json
+├── pnpm-lock.yaml
+├── main.lua                  # 原 Codea/Lua 原型
+├── .github/workflows/publish.yml
+├── FlipBlocksUnity/          # Unity 本機雙人版
+│   ├── Assets/
+│   ├── Packages/
+│   ├── ProjectSettings/
 │   └── README.md
 ├── docs/
-│   ├── index.html         # 網頁遊戲入口 / GitHub Pages
-│   ├── style.css          # 響應式遊戲介面
-│   ├── game-core.js       # 獨立遊戲規則
-│   ├── game.js            # 畫面、鍵盤與觸控
-│   ├── ai.js              # 單人模式 AI
-│   ├── network.js         # 連線、房間代碼與暱稱
-│   ├── audio.js           # Web Audio 音效
-│   ├── session-record.js  # 本場戰績
-│   ├── lan-play.md        # 連線對戰說明
-│   ├── deploy.md          # Docker / Watchtower 部署
-│   ├── github-pages.md    # 網頁版發佈說明
-│   └── screenshots/      # 現行版本與開發過程截圖
-├── server/index.cjs       # HTTP / WebSocket 多房間主機
-├── server/leaderboard.cjs # SQLite 匿名排行榜
+│   ├── index.html            # 網頁遊戲入口
+│   ├── style.css
+│   ├── game-core.js          # 遊戲規則
+│   ├── game.js               # 畫面、模式選擇與操作
+│   ├── ai.js                 # 單人模式 AI
+│   ├── network.js            # 連線、房間代碼與暱稱
+│   ├── audio.js              # Web Audio 音效
+│   ├── session-record.js     # 本場戰績
+│   ├── lan-play.md           # 線上對戰說明
+│   ├── deploy.md             # Docker / Watchtower
+│   ├── github-pages.md       # 靜態網頁發佈
+│   ├── favicon.svg
+│   └── screenshots/
+├── server/
+│   ├── index.cjs             # HTTP / WebSocket 多房間主機
+│   └── leaderboard.cjs       # SQLite 匿名排行榜
 ├── deploy/docker-compose.yml
-├── Dockerfile
-├── package.json           # npm start / npm test
-├── pnpm-lock.yaml         # 套件版本及完整性鎖定
 └── tests/
     ├── game-core.test.cjs
     ├── ai.test.cjs
     ├── network.test.cjs
     ├── rooms.test.cjs
+    ├── abuse.test.cjs
     └── session-record.test.cjs
 ```
 
-## Unity 版：開啟與遊玩
+## Unity 版
 
-1. 使用 Unity Hub 安裝 Unity **6000.4.10f1**，版本以 `FlipBlocksUnity/ProjectSettings/ProjectVersion.txt` 為準。
-2. 在 Unity Hub 加入本儲存庫內的 **`FlipBlocksUnity` 子資料夾**。
-3. 等待套件還原與資源匯入，開啟 `Assets/Scenes/Main.unity`。
-4. 按 Play，選擇顏色後開始本機雙人對戰。
+目前仍是同一台電腦的雙人操作，尚未做線上對戰。
 
-專案使用 Unity UGUI，套件設定已包含在 `Packages`。目前支援同一台電腦的雙人操作；LAN 連線尚未實作。
+1. 使用 Unity Hub 安裝 Unity **6000.4.10f1**（以 `FlipBlocksUnity/ProjectSettings/ProjectVersion.txt` 為準）。
+2. 加入本儲存庫的 **`FlipBlocksUnity`** 子資料夾。
+3. 開啟 `Assets/Scenes/Main.unity`，按 Play，選色後開始。
 
-| 動作 | P1 | P2 |
+| 動作 | 玩家一 | 玩家二 |
 | --- | --- | --- |
 | 左右移動 | ← / → | A / D |
 | 旋轉 | ↑ | W |
 | 軟降 | ↓ | S |
 | 硬降 | Enter | Space |
 
-棋盤大小為 10 × 20，包含 I/O/T/S/Z/J/L 方塊。方塊落定及包圍區域會造成翻色，任一顏色達到 70% 佔領時結算勝負。
+棋盤為 10 × 20，含 I/O/T/S/Z/J/L。方塊落定與包圍會翻色，任一顏色達到 70% 佔領即結束。網頁版規則與操作見 [GitHub Pages 發佈說明](docs/github-pages.md)。更多說明見 [`FlipBlocksUnity/README.md`](FlipBlocksUnity/README.md)。
 
-## 建置 macOS 版本
+macOS 建置入口為 `FlipBlocksUnity/Assets/Editor/BuildFlipBlocks.cs` 的 `BuildFlipBlocks.BuildMac`，輸出 `FlipBlocksUnityBuild/FlipBlocks.app`（已由 `.gitignore` 排除）。
 
-建置入口為 `FlipBlocksUnity/Assets/Editor/BuildFlipBlocks.cs` 中的 `BuildFlipBlocks.BuildMac`。輸出位置是儲存庫根目錄下的 `FlipBlocksUnityBuild/FlipBlocks.app`；建置成品已由 `.gitignore` 排除。
+請以**含本 README 的資料夾**作為 Git 根目錄。`Assets` 與其 `.meta`、`Packages`、`ProjectSettings` 需納入版本庫；Unity 快取與本機編輯器設定則排除。
 
-## 版本管理
+## 致謝
 
-請將**包含本 README 的資料夾**作為 Git 儲存庫根目錄。`Assets` 與其 `.meta`、`Packages`、`ProjectSettings` 都需要上傳，Unity 快取及個人編輯器設定則由 `.gitignore` 排除。
+- **原作者** [yuxzs](https://github.com/yuxzs)：Codea/Lua 原型與 Unity 版起點。本專案 fork 自 [yuxzs/Flip-Blocks](https://github.com/yuxzs/Flip-Blocks)。
+- **後續開發** [NYCU-Police](https://github.com/NYCU-Police)：網頁版、單人 AI、多房間線上對戰、排行榜與部署流程。
 
-原工作資料夾中的下列內容僅保留於本機，不會納入 Git：
-
-- `FlipBlocksUnity 2/`：較早的假人測試版本；正式版本為 `FlipBlocksUnity/`。
-- `FlipBlocksUnity.zip`：現有的專案壓縮檔。
-- `FlipBlocksUnityBuild/`：macOS 建置成品。
-- `FlipBlocksUnity/My project/`、`FlipBlocksUnity/My project (1)/`、`FlipBlocksUnity/Setup Guide In-Editor Tutorial/`：獨立的 Unity 範例或教學專案。
-- `Library/`、`Temp/`、`Logs/`、`UserSettings/` 等自動產生的內容。
-
-所有原始截圖集中於 `docs/screenshots/`。其中 `flip-blocks-local-2p.png` 為本機雙人版本截圖，其餘保留作為開發過程紀錄。
+感謝原作把規則與雙人節奏做完整，我們才有機會在瀏覽器上繼續擴充。
