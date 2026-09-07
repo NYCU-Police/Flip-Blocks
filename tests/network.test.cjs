@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { once } = require('node:events');
 const { WebSocket } = require('ws');
 const { createServer } = require('../server/index.cjs');
-const { serverAddress, reconnectDelay } = require('../docs/network.js');
+const { serverAddress, reconnectDelay, encodeBoard, decodeBoard, applyGame } = require('../docs/network.js');
 
 async function fixture(t, options) {
   const app = createServer(options);
@@ -51,6 +51,13 @@ test('IP entry accepts IP, port, IPv6 and HTTPS while rejecting unsafe URLs', ()
   assert.equal(reconnectDelay(0), 500);
   assert.equal(reconnectDelay(1), 1000);
   assert.equal(reconnectDelay(4), 5000);
+  const board = Array.from({ length: 20 }, (_, y) => Array(10).fill(y < 10 ? 1 : 2));
+  assert.equal(encodeBoard(board).length, 200);
+  assert.deepEqual(decodeBoard(encodeBoard(board)), board);
+  const target = { board: encodeBoard(board), elapsed: 1 };
+  applyGame(target, { elapsed: 2, board: encodeBoard(board) });
+  assert.equal(target.elapsed, 2);
+  assert.deepEqual(target.board, board);
 });
 
 test('server serves the game and rejects unrelated files and cross-origin upgrades', async t => {
@@ -219,6 +226,22 @@ test('malformed and oversized packets cannot crash the server', async t => {
   const host = await client('host'); await host.state();
   for (const message of [null, [], { type: 'color', color: 3 }, { type: 'input', action: '__proto__' }]) host.send(message);
   host.send({ type: 'ready' }); assert.equal((await host.state(m => m.ready[0])).game.state, 'ready');
+});
+
+test('playing ticks stay smaller than compact snapshots, which stay smaller than naive boards', async t => {
+  const { playing } = await fixture(t);
+  const { guest } = await playing();
+  guest.send({ type: 'input', action: 'drop' });
+  const full = await guest.state(m => m.game.locked[1] === 1);
+  assert.equal(typeof full.game.board, 'string');
+  assert.equal(full.game.board.length, 200);
+  const compactBytes = Buffer.byteLength(JSON.stringify(full));
+  const naive = { ...full, game: { ...full.game, board: decodeBoard(full.game.board) } };
+  const naiveBytes = Buffer.byteLength(JSON.stringify(naive));
+  const tick = await guest.wait(m => m.type === 'tick', 0, 2500);
+  const tickBytes = Buffer.byteLength(JSON.stringify(tick));
+  assert.ok(compactBytes < naiveBytes, `compact ${compactBytes} should beat naive ${naiveBytes}`);
+  assert.ok(tickBytes < compactBytes, `tick ${tickBytes} should beat compact ${compactBytes}`);
 });
 
 test('heartbeat removes an unresponsive player and stops the match', async t => {

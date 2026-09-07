@@ -4,9 +4,12 @@
   const game=new Game(), $=id=>document.getElementById(id);
   const board=$('board'), tiles=[], held=new Set(), pointerHolds=new Map();
   let lastTime=0, previousState='', previousQueues='', previousLocks=0;
+  let previousBoardKey='', previousClock='', previousHud='';
   let softSent=false, softAt=0, wasNetwork=false;
   const network=new FlipNetwork.Connection(networkChanged, snapshot=>{
-    Object.assign(game,snapshot); render();
+    FlipNetwork.applyGame(game,snapshot);
+    previousBoardKey=''; previousState='';
+    render();
   });
   function remainSecs() {
     return network.reconnect?Math.max(0,Math.ceil((network.reconnect.deadline-Date.now())/1000)):-1;
@@ -99,33 +102,42 @@
   }
   function render() {
     const counts=game.counts(), classes=new Map();
-    if(game.state==='playing'||game.state==='paused') {
-      for(let owner=0;owner<2;owner++) {
-        for(const [x,y] of cells(game.ghost(owner))) if(inBounds(x,y)) classes.set(y*10+x,`ghost${owner+1}`);
+    const boardKey=(Array.isArray(game.board[0])?game.board.flat().join(''):String(game.board))+JSON.stringify(game.pieces)+game.state;
+    if(boardKey!==previousBoardKey) {
+      previousBoardKey=boardKey;
+      if(game.state==='playing'||game.state==='paused') {
+        for(let owner=0;owner<2;owner++) {
+          for(const [x,y] of cells(game.ghost(owner))) if(inBounds(x,y)) classes.set(y*10+x,`ghost${owner+1}`);
+        }
+        for(let owner=0;owner<2;owner++) {
+          for(const [x,y] of cells(game.pieces[owner])) if(inBounds(x,y)) classes.set(y*10+x,`active${owner+1}`);
+        }
       }
-      for(let owner=0;owner<2;owner++) {
-        for(const [x,y] of cells(game.pieces[owner])) if(inBounds(x,y)) classes.set(y*10+x,`active${owner+1}`);
+      for(const {tile,x,y} of tiles) {
+        const name=`cell${game.board[y][x]===1?' black':''} ${classes.get(y*10+x)||''}`;
+        if(tile.className!==name) tile.className=name;
       }
     }
-    for(const {tile,x,y} of tiles) {
-      const name=`cell${game.board[y][x]===1?' black':''} ${classes.get(y*10+x)||''}`;
-      if(tile.className!==name) tile.className=name;
-    }
-    for(let owner=0;owner<2;owner++) {
-      const p=`p${owner+1}`,side=game.sides[owner],score=pct(counts[side.color-1]);
-      $(p+'-score').textContent=score;$(p+'-meter').style.width=score+'%';
-      $(p+'-color').textContent=colorName(side.color);$(p+'-locked').textContent=game.locked[owner];
-      document.querySelector(`[data-owner="${owner}"][data-action="drop"]`).textContent=`落定 ${side.dir===-1?'↓':'↑'}`;
+    const hud=JSON.stringify([counts,game.locked,game.sides[0].color]);
+    if(hud!==previousHud) {
+      previousHud=hud;
+      for(let owner=0;owner<2;owner++) {
+        const p=`p${owner+1}`,side=game.sides[owner],score=pct(counts[side.color-1]);
+        $(p+'-score').textContent=score;$(p+'-meter').style.width=score+'%';
+        $(p+'-color').textContent=colorName(side.color);$(p+'-locked').textContent=game.locked[owner];
+        document.querySelector(`[data-owner="${owner}"][data-action="drop"]`).textContent=`落定 ${side.dir===-1?'↓':'↑'}`;
+      }
+      $('territory-black').style.width=pct(counts[0])+'%';$('territory-white').style.width=pct(counts[1])+'%';
+      board.setAttribute('aria-label',`10 欄 20 列棋盤。黑方 ${pct(counts[0])}%，白方 ${pct(counts[1])}%。`);
     }
     const queueKey=JSON.stringify(game.queues);
     if(queueKey!==previousQueues) {
       for(let owner=0;owner<2;owner++) $(`p${owner+1}-next`).innerHTML=game.queues[owner].map(nextPreview).join('');
       previousQueues=queueKey;
     }
-    $('territory-black').style.width=pct(counts[0])+'%';$('territory-white').style.width=pct(counts[1])+'%';
-    board.setAttribute('aria-label',`10 欄 20 列棋盤。黑方 ${pct(counts[0])}%，白方 ${pct(counts[1])}%。`);
     const seconds=Math.floor(game.elapsed);
-    $('clock').textContent=`${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
+    const clock=`${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
+    if(clock!==previousClock) {previousClock=clock;$('clock').textContent=clock;}
     const locked=game.locked[0]+game.locked[1];
     if(locked!==previousLocks && game.state==='playing') {
       $('match-status').textContent=game.lastFlips?`包圍翻轉 ${game.lastFlips} 格！`:'對戰進行中';previousLocks=locked;
@@ -236,8 +248,7 @@
       if(hold.type==='soft') fast[hold.owner]=true;
       if(['left','right'].includes(hold.type)&&hold.age>.22&&hold.repeat>=.09) {hold.repeat=0;action(hold.owner,hold.type);}
     }
-    if(game.state==='playing') {if(network.active) sendSoft(fast.some(Boolean));else game.tick(dt,fast);render();}
-    else if(network.reconnect||network.pendingReconnect) render();
+    if(game.state==='playing') {if(network.active) sendSoft(fast.some(Boolean));else {game.tick(dt,fast);render();}}
     requestAnimationFrame(frame);
   }
   // Optional agent controls use the same actions as the visible game.

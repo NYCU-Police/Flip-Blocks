@@ -6,6 +6,7 @@ const os = require('node:os');
 const crypto = require('node:crypto');
 const { WebSocketServer, WebSocket } = require('ws');
 const { Game } = require('../docs/game-core.js');
+const { encodeBoard } = require('../docs/network.js');
 
 const RECONNECT_MS = 60000;
 
@@ -56,8 +57,25 @@ function createServer({ heartbeatMs = 5000, reconnectMs = RECONNECT_MS } = {}) {
     if (owner < 0) return null;
     return { owner, deadline: reconnecting[owner].deadline };
   }
-  function broadcast() {
-    const data = { type: 'state', revision: ++revision, game, connected: players.map(Boolean), ready, reconnect: reconnectInfo() };
+  function round3(n) { return Math.round(n * 1000) / 1000; }
+  function publicGame() {
+    return {
+      state: game.state, sides: game.sides, board: encodeBoard(game.board), queues: game.queues,
+      pieces: game.pieces, timers: [round3(game.timers[0]), round3(game.timers[1])],
+      locked: game.locked, elapsed: round3(game.elapsed), winner: game.winner, lastFlips: game.lastFlips
+    };
+  }
+  function broadcast(kind = 'full') {
+    if (kind === 'tick') {
+      const data = {
+        type: 'tick', revision: ++revision, elapsed: round3(game.elapsed), pieces: game.pieces,
+        timers: [round3(game.timers[0]), round3(game.timers[1])], locked: game.locked,
+        state: game.state, lastFlips: game.lastFlips
+      };
+      for (const ws of players) send(ws, data);
+      return;
+    }
+    const data = { type: 'state', revision: ++revision, game: publicGame(), connected: players.map(Boolean), ready, reconnect: reconnectInfo() };
     for (const ws of players) send(ws, data);
   }
   function stopInput() { fast.fill(false); fastUntil.fill(0); }
@@ -216,12 +234,21 @@ function createServer({ heartbeatMs = 5000, reconnectMs = RECONNECT_MS } = {}) {
       else lobbyDepart(owner);
     });
   });
-  let lastTick = performance.now();
+  let lastTick = performance.now(), lastTickSent = 0;
   const tick = setInterval(() => {
     const now = performance.now(), dt = (now - lastTick) / 1000; lastTick = now;
     for (let i = 0; i < 2; i++) if (Date.now() > fastUntil[i]) fast[i] = false;
     for (let i = 0; i < 2; i++) if (reconnecting[i] && Date.now() >= reconnecting[i].deadline) timeoutReconnect(i);
-    if (game.state === 'playing') { game.tick(dt, fast); broadcast(); }
+    if (game.state === 'playing') {
+      const lockBefore = `${game.locked[0]},${game.locked[1]},${game.state}`;
+      const pieceBefore = JSON.stringify(game.pieces);
+      game.tick(dt, fast);
+      if (`${game.locked[0]},${game.locked[1]},${game.state}` !== lockBefore) broadcast('full');
+      else if (JSON.stringify(game.pieces) !== pieceBefore || now - lastTickSent >= 200) {
+        lastTickSent = now;
+        broadcast('tick');
+      }
+    }
   }, 50);
   const heartbeat = setInterval(() => {
     for (const ws of wss.clients) {

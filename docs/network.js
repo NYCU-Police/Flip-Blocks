@@ -26,6 +26,26 @@
   function reconnectDelay(attempt) {
     return Math.min(500 * (2 ** Math.max(attempt, 0)), 5000);
   }
+  function encodeBoard(board) {
+    if (typeof board === 'string') return board;
+    return board.map(row => row.join('')).join('');
+  }
+  function decodeBoard(encoded) {
+    if (Array.isArray(encoded)) return encoded;
+    const board = [];
+    for (let y = 0; y < 20; y++) {
+      const row = [];
+      for (let x = 0; x < 10; x++) row.push(Number(encoded[y * 10 + x]));
+      board.push(row);
+    }
+    return board;
+  }
+  function applyGame(target, snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') return target;
+    Object.assign(target, snapshot);
+    if (typeof target.board === 'string') target.board = decodeBoard(target.board);
+    return target;
+  }
   function remainText(deadline) {
     const secs = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
     return `對方斷線，等待重連中（剩餘 ${secs} 秒）`;
@@ -103,6 +123,11 @@
             this.message = remainText(this.reconnect.deadline);
           } else if (wasWaiting && this.message.startsWith('對方斷線')) this.message = '';
           this.onState(data.game); this.onChange();
+        } else if (data.type === 'tick' && this.owner !== null) {
+          this.onState({
+            elapsed: data.elapsed, pieces: data.pieces, timers: data.timers,
+            locked: data.locked, state: data.state, lastFlips: data.lastFlips
+          });
         } else if (data.type === 'reconnect-waiting') {
           this.reconnect = { owner: data.owner, deadline: data.deadline };
           this.reconnectUntil = data.deadline;
@@ -166,7 +191,7 @@
       if (clearToken) { this.sessionToken = ''; saveToken(''); }
     }
   }
-  const api = { Connection, serverAddress, reconnectDelay };
+  const api = { Connection, serverAddress, reconnectDelay, encodeBoard, decodeBoard, applyGame };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.FlipNetwork = api;
 })(globalThis);
