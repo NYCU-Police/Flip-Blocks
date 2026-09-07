@@ -1,0 +1,11 @@
+.git
+.github
+FlipBlocksUnity
+FlipBlocksUnityBuild
+node_modules
+tests
+docs/screenshots
+*.md
+!package.json
+.env
+.env.*

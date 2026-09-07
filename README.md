@@ -29,7 +29,7 @@ npm start
 
 連線時方向鍵或 WASD 都控制自己，Enter / Space 落定，也支援觸控。棋盤、方塊、勝負與暫停由主機同步。對局進行中若有人斷線，主機會暫停並保留完整棋盤，等待最多 60 秒以工作階段憑證重連；逾時則判留下的玩家獲勝並回到大廳。大廳中離開仍會立刻讓出座位。原本同機模式仍可直接開啟 `docs/index.html`，不用安裝套件。
 
-**GitHub Pages 僅提供靜態遊戲，連線對戰需有一台電腦執行主機。** IP 加入會前往該主機提供的遊戲頁面。每台主機提供一間雙人房；沒有自動掃描 LAN 或跨網際網路配對。更多連接埠及排錯方式請見 [連線對戰說明](docs/lan-play.md)。
+**GitHub Pages 僅提供靜態遊戲，連線對戰需有一台電腦執行主機。** IP 加入會前往該主機提供的遊戲頁面。每台主機提供一間雙人房；沒有自動掃描 LAN 或跨網際網路配對。更多連接埠及排錯方式請見 [連線對戰說明](docs/lan-play.md)。若要以 Docker 在內網主機常駐並自動更新，見 [拉取式部署說明](docs/deploy.md)。
 
 ## 專案結構
 
@@ -49,16 +49,21 @@ npm start
 │   ├── game-core.js       # 獨立遊戲規則
 │   ├── game.js            # 畫面、鍵盤與觸控
 │   ├── network.js         # 連線及 IP 加入
+│   ├── audio.js           # Web Audio 音效
+│   ├── session-record.js  # 本場戰績
 │   ├── lan-play.md        # 連線對戰說明
+│   ├── deploy.md          # Docker / Watchtower 部署
 │   ├── github-pages.md    # 網頁版發佈說明
-│   ├── github-upload.md
 │   └── screenshots/      # 現行版本與開發過程截圖
 ├── server/index.cjs       # HTTP / WebSocket 連線主機
+├── deploy/docker-compose.yml
+├── Dockerfile
 ├── package.json           # npm start / npm test
 ├── pnpm-lock.yaml         # 套件版本及完整性鎖定
 └── tests/
-    ├── game-core.test.cjs # 遊戲規則測試
-    └── network.test.cjs   # 雙客戶端連線整合測試
+    ├── game-core.test.cjs
+    ├── network.test.cjs
+    └── session-record.test.cjs
 ```
 
 ## Unity 版：開啟與遊玩
