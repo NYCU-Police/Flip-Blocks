@@ -12,6 +12,7 @@ const RECONNECT_MS = 60000;
 
 // A server owns one two-player room. Clients send actions, never board state.
 function createServer({ heartbeatMs = 5000, reconnectMs = RECONNECT_MS } = {}) {
+  const started = Date.now();
   const game = new Game();
   const players = [null, null], fast = [false, false], fastUntil = [0, 0];
   const ready = [false, false];
@@ -22,7 +23,8 @@ function createServer({ heartbeatMs = 5000, reconnectMs = RECONNECT_MS } = {}) {
   const assets = new Map([
     ['/', ['index.html', 'text/html']], ['/index.html', ['index.html', 'text/html']],
     ['/game.js', ['game.js', 'text/javascript']], ['/game-core.js', ['game-core.js', 'text/javascript']],
-    ['/network.js', ['network.js', 'text/javascript']], ['/style.css', ['style.css', 'text/css']],
+    ['/network.js', ['network.js', 'text/javascript']], ['/audio.js', ['audio.js', 'text/javascript']],
+    ['/session-record.js', ['session-record.js', 'text/javascript']], ['/style.css', ['style.css', 'text/css']],
     ['/favicon.svg', ['favicon.svg', 'image/svg+xml']]
   ]);
   const server = http.createServer((req, res) => {
@@ -30,6 +32,17 @@ function createServer({ heartbeatMs = 5000, reconnectMs = RECONNECT_MS } = {}) {
     try { url = new URL(req.url, 'http://localhost'); }
     catch { res.writeHead(400); res.end('Invalid URL'); return; }
     if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405); res.end(); return; }
+    if (url.pathname === '/healthz') {
+      const body = JSON.stringify({
+        ok: true,
+        uptime: Math.round((Date.now() - started) / 1000),
+        room: { state: game.state, connected: players.map(Boolean), reconnecting: reconnecting.map(Boolean) }
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      if (req.method === 'HEAD') res.end();
+      else res.end(body);
+      return;
+    }
     const asset = assets.get(url.pathname);
     if (!asset) { res.writeHead(404); res.end('Not found'); return; }
     res.writeHead(200, { 'Content-Type': asset[1] + '; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });

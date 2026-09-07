@@ -62,7 +62,13 @@ test('IP entry accepts IP, port, IPv6 and HTTPS while rejecting unsafe URLs', ()
 
 test('server serves the game and rejects unrelated files and cross-origin upgrades', async t => {
   const { port } = await fixture(t);
-  for (const asset of ['/', '/game.js', '/network.js', '/style.css']) assert.equal((await fetch(`http://127.0.0.1:${port}${asset}`)).status, 200);
+  for (const asset of ['/', '/game.js', '/network.js', '/audio.js', '/session-record.js', '/style.css']) assert.equal((await fetch(`http://127.0.0.1:${port}${asset}`)).status, 200);
+  const health = await fetch(`http://127.0.0.1:${port}/healthz`);
+  assert.equal(health.status, 200);
+  const body = await health.json();
+  assert.equal(body.ok, true);
+  assert.equal(typeof body.uptime, 'number');
+  assert.deepEqual(body.room.connected, [false, false]);
   for (const asset of ['/server/index.cjs', '/.git/config', '/package.json']) assert.equal((await fetch(`http://127.0.0.1:${port}${asset}`)).status, 404);
   const ws = new WebSocket(`ws://127.0.0.1:${port}/match`, { origin: 'https://another.example' });
   const [error] = await once(ws, 'error'); assert.match(error.message, /403/);
@@ -247,7 +253,40 @@ test('playing ticks stay smaller than compact snapshots, which stay smaller than
 test('heartbeat removes an unresponsive player and stops the match', async t => {
   const { client } = await fixture(t, { heartbeatMs: 100 });
   const host = await client('host'); await host.state();
+  await host.wait(m => m.type === 'heartbeat', 0, 2500);
   const guest = await client('guest', 1, { autoPong: false }); await guest.state();
   const closed = once(guest.ws, 'close'); await closed;
   await host.state(m => !m.connected[1] && m.revision > 2);
+});
+
+test('heartbeat drop during a match waits for reconnect instead of ending it', async t => {
+  const app = createServer({ heartbeatMs: 80 });
+  t.after(() => app.close());
+  app.server.listen(0, '127.0.0.1'); await once(app.server, 'listening');
+  const port = app.server.address().port;
+  async function join(role, wsOptions = {}) {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/match`, wsOptions);
+    const messages = [];
+    ws.on('message', data => messages.push(JSON.parse(data.toString())));
+    await once(ws, 'open');
+    ws.send(JSON.stringify({ type: 'join', role, color: 1 }));
+    const wait = async (predicate, ms = 2500) => {
+      const end = Date.now() + ms;
+      while (Date.now() < end) {
+        const found = messages.find(predicate);
+        if (found) return found;
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      throw new Error('timeout');
+    };
+    return { ws, send: data => ws.send(JSON.stringify(data)), wait };
+  }
+  const host = await join('host'); await host.wait(m => m.type === 'state');
+  const guest = await join('guest', { autoPong: false }); await guest.wait(m => m.connected?.every(Boolean));
+  host.send({ type: 'ready' }); guest.send({ type: 'ready' });
+  await host.wait(m => m.ready?.every(Boolean));
+  host.send({ type: 'start' }); await host.wait(m => m.game?.state === 'playing');
+  await once(guest.ws, 'close');
+  const waiting = await host.wait(m => m.type === 'reconnect-waiting', 2500);
+  assert.equal(waiting.owner, 1);
 });
