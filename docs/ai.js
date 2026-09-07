@@ -20,9 +20,10 @@
   };
 
   const DIFFICULTIES = {
-    easy: { id: 'easy', noise: 7, secondBest: 0.3, moveMs: 260, lookAhead: 1 },
-    normal: { id: 'normal', noise: 0, secondBest: 0, moveMs: 140, lookAhead: 1 },
-    hard: { id: 'hard', noise: 0, secondBest: 0, moveMs: 85, lookAhead: 2 }
+    novice: { id: 'novice', noise: 18, secondBest: 0.65, moveMs: 420, lookAhead: 1, dropScale: 0.7 },
+    easy: { id: 'easy', noise: 7, secondBest: 0.3, moveMs: 260, lookAhead: 1, dropScale: 0.7 },
+    normal: { id: 'normal', noise: 0, secondBest: 0, moveMs: 140, lookAhead: 1, dropScale: 1 },
+    hard: { id: 'hard', noise: 0, secondBest: 0, moveMs: 85, lookAhead: 2, dropScale: 1 }
   };
   const DIFF_KEY = 'flip-blocks-ai-difficulty';
 

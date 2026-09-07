@@ -212,6 +212,25 @@
   function clearInput() {held.clear();pointerHolds.clear();sendSoft(false);}
   function selectedMode() {return playMode==='ai'?'ai':'local';}
   function selectedDifficulty() {return document.querySelector('input[name="difficulty"]:checked')?.value||'normal';}
+  function dropScale() {
+    if(playMode!=='ai'||network.active) return 1;
+    const spec=FlipAI?.DIFFICULTIES?.[selectedDifficulty()];
+    return spec?.dropScale ?? 1;
+  }
+  function tickLocal(dt,fast) {
+    const flags=playMode==='ai'?[fast[0],false]:fast;
+    const scale=dropScale();
+    if(scale===1) {game.tick(dt,flags);return;}
+    const cap=Math.min(Math.max(dt,0),0.1);
+    const interval=flags[0]?0.08:0.45;
+    game.timers[0]+=cap*scale;
+    if(game.timers[0]>=interval) {game.timers[0]=0;game.step(0);}
+    if(game.state!=='playing') {game.elapsed+=cap;return;}
+    const keep=game.timers[0];
+    game.timers[0]=-1e6;
+    game.tick(dt,[false,false]);
+    game.timers[0]=keep;
+  }
   function stopAI() {if(ai){ai.stop();ai=null;}}
   function syncModeUi() {
     const aiOn=playMode==='ai'&&!network.active;
@@ -441,7 +460,7 @@
       if(network.active) sendSoft(fast.some(Boolean));
       else {
         if(ai) ai.tick(dt);
-        if(game.state==='playing') game.tick(dt,playMode==='ai'?[fast[0],false]:fast);
+        if(game.state==='playing') tickLocal(dt,fast);
         render();
       }
     }
@@ -463,6 +482,18 @@
   window.addEventListener('pagehide',()=>network.disconnect());
   $('mute').addEventListener('click',()=>{FlipAudio?.setMuted(!FlipAudio.isMuted());syncMute();});
   document.addEventListener('pointerdown',()=>FlipAudio?.unlock(),{once:true});
+  const HINT_KEY='flip-blocks-seen-start-hint';
+  function showStartHint() {
+    const hint=$('start-hint');
+    if(!hint) return;
+    try {if(localStorage.getItem(HINT_KEY)) {hint.hidden=true;return;}} catch {}
+    hint.hidden=false;
+  }
+  $('dismiss-start-hint')?.addEventListener('click',()=>{
+    try {localStorage.setItem(HINT_KEY,'1');} catch {}
+    $('start-hint').hidden=true;
+  });
+  showStartHint();
   const savedDiff=FlipAI?.loadDifficulty();
   if(savedDiff) {
     const radio=document.querySelector(`input[name="difficulty"][value="${savedDiff}"]`);

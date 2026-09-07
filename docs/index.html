@@ -36,6 +36,10 @@
     </div>
     <section id="mode-home" class="mode-home" aria-label="選擇對戰模式">
       <p class="mode-home-lead">選一種方式開始。</p>
+      <p id="start-hint" class="start-hint" hidden>
+        <span>第一次玩?建議從『單人對戰 AI · 新手』開始</span>
+        <button type="button" id="dismiss-start-hint" class="text-link">知道了</button>
+      </p>
       <div class="mode-cards">
         <button type="button" class="mode-card" id="pick-ai">
           <strong>單人對戰 AI</strong>
@@ -110,7 +114,7 @@
             <div id="overlay" class="overlay"><div class="overlay-card">
               <div class="small-mark" aria-hidden="true">◧</div><p id="overlay-kicker" class="eyebrow">READY TO FLIP?</p><h2 id="overlay-title">準備好翻轉戰局？</h2><p id="overlay-description">兩位玩家，共用一個棋盤。<br>用方塊搶下你的領地。</p>
               <fieldset id="mode-picker" hidden><legend>對戰模式</legend><label><input type="radio" name="mode" value="local" checked><span>同機雙人</span></label><label><input type="radio" name="mode" value="ai"><span>單人對戰 AI</span></label></fieldset>
-              <fieldset id="difficulty-picker" hidden><legend>AI 難度</legend><label><input type="radio" name="difficulty" value="easy"><span>簡單</span></label><label><input type="radio" name="difficulty" value="normal" checked><span>普通</span></label><label><input type="radio" name="difficulty" value="hard"><span>困難</span></label></fieldset>
+              <fieldset id="difficulty-picker" hidden><legend>AI 難度</legend><label><input type="radio" name="difficulty" value="novice"><span>新手</span></label><label><input type="radio" name="difficulty" value="easy"><span>簡單</span></label><label><input type="radio" name="difficulty" value="normal" checked><span>普通</span></label><label><input type="radio" name="difficulty" value="hard"><span>困難</span></label></fieldset>
               <fieldset id="color-picker"><legend>玩家一選擇顏色</legend><label><input type="radio" name="color" value="1" checked><span>● 黑方 ↓</span></label><label><input type="radio" name="color" value="2"><span>○ 白方 ↑</span></label></fieldset>
               <button id="start" class="primary">開始對戰 <span>↗</span></button><p class="overlay-note" id="overlay-note">請兩位玩家就位</p>
             </div></div>

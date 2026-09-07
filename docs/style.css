@@ -16,6 +16,12 @@ html{touch-action:manipulation}*{box-sizing:border-box}body{margin:0;background:
 .stage-pick .match-heading{justify-content:flex-end}
 .mode-home{margin:8px 0 36px}
 .mode-home-lead{color:var(--muted);font-size:15px;margin:0 0 18px}
+.start-hint{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 16px;padding:12px 14px;border:1px solid #3d4a38;border-radius:8px;background:#1a2218;color:var(--mint);font-size:14px;line-height:1.6}
+.start-hint[hidden]{display:none!important}
+.start-hint .text-link{color:var(--muted);margin:0;padding:8px 4px}
+#difficulty-picker{flex-wrap:wrap}
+#difficulty-picker label{flex:1 1 calc(25% - 8px);min-width:64px}
+#difficulty-picker label span{padding:9px 4px;font-size:13px}
 .mode-cards{display:grid;gap:14px}
 .mode-card{min-height:88px;text-align:left;padding:22px 20px;border:1px solid var(--line);background:var(--panel);border-radius:10px;color:var(--text)}
 .mode-card:hover{border-color:var(--mint);background:#1d2420}
