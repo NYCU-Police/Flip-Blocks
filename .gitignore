@@ -68,6 +68,8 @@ id_rsa
 id_ed25519
 
 # Operating-system files and editor backups.
+node_modules/
+.pnpm-store/
 .DS_Store
 .AppleDouble
 .LSOverride

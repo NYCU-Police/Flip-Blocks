@@ -7,7 +7,7 @@
 在儲存庫根目錄執行（本機已設定 `origin` 為 `git@github.com:yuxzs/Flip-Blocks.git`）：
 
 ```sh
-git add README.md docs/index.html docs/style.css docs/game-core.js docs/game.js docs/favicon.svg docs/.nojekyll docs/github-pages.md tests/game-core.test.cjs
+git add README.md docs/index.html docs/style.css docs/game-core.js docs/game.js docs/network.js docs/lan-play.md docs/favicon.svg docs/.nojekyll docs/github-pages.md tests/game-core.test.cjs tests/network.test.cjs server/index.cjs package.json pnpm-lock.yaml .gitignore
 git diff --cached --stat
 git commit -m "Add browser game for GitHub Pages"
 git push origin main
@@ -58,7 +58,7 @@ node --test tests/game-core.test.cjs
 | 直接落定 | Enter | Space |
 | 暫停／繼續 | Esc | Esc |
 
-兩位玩家也可使用各自面板的觸控按鈕；切換分頁或視窗會自動暫停。這是**同一台裝置的雙人對戰**，沒有線上配對、AI 或跨裝置連線。
+兩位玩家也可使用各自面板的觸控按鈕；切換分頁或視窗會自動暫停。預設為**同一台裝置的雙人對戰**；跨裝置遊玩請使用「區域網路 / IP 連線對戰」，由一台電腦啟動主機，詳見 [連線對戰說明](lan-play.md)。GitHub Pages 本身不能執行此主機。
 
 - 黑方基地位於底部，方塊往下推進；白方基地位於頂部，方塊往上推進。選色只交換玩家所屬顏色。
 - 方塊碰到己方領地前落定，將當前格子翻色。沿用 Unity 的左右移動／旋轉規則：檢查棋盤邊界，前進時再檢查己方顏色。

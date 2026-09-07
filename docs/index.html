@@ -9,15 +9,26 @@
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./style.css">
   <script src="./game-core.js" defer></script>
+  <script src="./network.js" defer></script>
   <script src="./game.js" defer></script>
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="./" aria-label="翻轉方塊首頁"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>FLIP BLOCKS<span class="brand-zh">翻轉方塊</span></a>
-    <span class="mode"><span></span>同機雙人對戰</span>
+    <span class="mode"><span></span><b id="mode-label">同機雙人對戰</b></span>
   </header>
   <main>
     <div class="match-heading"><div><p class="eyebrow">THE TERRITORY IS YOURS TO TAKE</p><h1>每一塊，都能翻盤。</h1></div><div class="match-actions"><span id="clock" class="clock">00:00</span><button id="pause" class="quiet" disabled>暫停 <kbd>Esc</kbd></button><button id="restart" class="quiet" disabled>新對局 ↗</button></div></div>
+    <details class="network-panel" id="network-panel">
+      <summary>區域網路 / IP 連線對戰 <span>跨裝置一起玩 ↗</span></summary>
+      <div class="network-content">
+        <p>房主先在電腦執行 <code>npm install</code>、<code>npm start</code>，開啟終端機顯示的網址建立房間。朋友連上同一 Wi-Fi，輸入房主的 IP 即可加入。</p>
+        <form id="join-form" class="network-address"><label for="server-address">主機 IP / 位址</label><input id="server-address" type="text" placeholder="192.168.1.20:8787" autocomplete="off" spellcheck="false" required><button class="quiet" id="join-ip" type="submit">輸入 IP 加入</button></form>
+        <div class="network-actions"><button class="quiet" id="host" type="button">建立房間（玩家一）</button><button class="quiet" id="join" type="button">加入此主機（玩家二）</button><button class="quiet" id="ready" type="button" hidden>準備</button><button class="quiet" id="leave" type="button" hidden>離開連線 / 同機模式</button></div>
+        <p id="network-status" role="status">尚未連線。每個主機提供一間雙人房。</p>
+        <p class="network-hint">連線時，方向鍵或 WASD 都可操作自己，Enter / Space 落定。雙方準備後由房主開始；換色及再戰需重新準備。</p>
+      </div>
+    </details>
     <div class="arena">
       <section class="player player-one" aria-labelledby="p1-heading">
         <div class="player-top"><span class="player-tag">PLAYER 01</span><span class="player-dot"></span></div>

@@ -4,14 +4,66 @@
   const game=new Game(), $=id=>document.getElementById(id);
   const board=$('board'), tiles=[], held=new Set(), pointerHolds=new Map();
   let lastTime=0, previousState='', previousQueues='', previousLocks=0;
+  let softSent=false, softAt=0, wasNetwork=false;
+  const network=new FlipNetwork.Connection(networkChanged, snapshot=>{
+    Object.assign(game,snapshot); render();
+  });
+  function networkChanged() {
+    if(wasNetwork&&!network.active) {clearInput();game.state='ready';}
+    wasNetwork=network.active;
+    const joined=network.owner!==null, both=network.connected.every(Boolean);
+    $('mode-label').textContent=network.active?'區域網路對戰':'同機雙人對戰';
+    $('host').disabled=network.active;$('join').disabled=network.active;
+    $('join-ip').disabled=network.active;$('server-address').disabled=network.active;
+    $('leave').hidden=!network.active;$('ready').hidden=!joined||game.state!=='ready';
+    $('ready').textContent=network.ready[network.owner]?'取消準備':'我準備好了';
+    $('network-status').textContent=network.message||(joined?
+      `你是玩家${network.owner+1} · ${both?'雙方已連線':'等待玩家二加入'} · P1 ${network.ready[0]?'已準備':'未準備'} / P2 ${network.ready[1]?'已準備':'未準備'}`:
+      '尚未連線。每個主機提供一間雙人房。');
+    for(let owner=0;owner<2;owner++) {
+      const panel=document.querySelector(owner===0?'.player-one':'.player-two');
+      panel.classList.toggle('remote',joined&&owner!==network.owner);
+      panel.classList.toggle('self',joined&&owner===network.owner);
+    }
+    render();
+  }
+  function connect(role) {
+    clearInput();game.state='ready';
+    $('network-panel').open=true;
+    if(!['http:','https:'].includes(location.protocol)) {
+      network.message='請先執行 npm start，開啟 http://localhost:8787 建立房間；朋友可在上方輸入主機 IP。';networkChanged();return;
+    }
+    network.connect(role,Number(document.querySelector('input[name="color"]:checked').value));
+  }
+  $('host').addEventListener('click',()=>connect('host'));
+  $('join').addEventListener('click',()=>connect('guest'));
+  $('ready').addEventListener('click',()=>network.send({type:'ready'}));
+  $('leave').addEventListener('click',()=>{network.leave();network.message='已離開連線，可開始同機對戰。';networkChanged();reset(true);});
+  $('join-form').addEventListener('submit',event=>{
+    event.preventDefault();
+    try {
+      const url=FlipNetwork.serverAddress($('server-address').value);
+      if(url.origin===location.origin) connect('guest');
+      else {url.searchParams.set('join','1');location.assign(url.href);}
+    } catch(error) {network.message=error.message;networkChanged();}
+  });
+  if(['http:','https:'].includes(location.protocol)) $('server-address').value=location.origin;
+  function owns(owner) {return !network.active||network.owner===owner;}
+  function sendSoft(down) {
+    if(!network.active) return;
+    const now=performance.now();
+    if(down===softSent&&(!down||now-softAt<500)) return;
+    softSent=down;softAt=now;network.send({type:'input',action:'soft',down});
+  }
   for(let y=19;y>=0;y--) for(let x=0;x<10;x++) {
     const tile=document.createElement('div');tile.className='cell';tile.setAttribute('aria-hidden','true');
     board.append(tile);tiles.push({tile,x,y});
   }
   const pct=count=>Number((count/2).toFixed(1)).toString();
   const colorName=color=>color===1?'黑方 ↓':'白方 ↑';
-  function clearInput() {held.clear();pointerHolds.clear();}
+  function clearInput() {held.clear();pointerHolds.clear();sendSoft(false);}
   function reset(ready=false) {
+    if(network.active) {network.send({type:ready?'restart':'start'});return;}
     clearInput();
     game.reset(Number(document.querySelector('input[name="color"]:checked').value));
     if(ready) game.state='ready';
@@ -19,7 +71,9 @@
     if(!ready) board.focus({preventScroll:true});
   }
   function action(owner,type) {
-    if(game.state!=='playing') return;
+    if(game.state!=='playing'||!owns(owner)) return;
+    if(network.active) {if(type!=='soft') network.send({type:'input',action:type});return;}
+    if(type==='step') game.step(owner);
     if(type==='left') game.move(owner,-1);
     if(type==='right') game.move(owner,1);
     if(type==='rotate') game.rotate(owner);
@@ -27,7 +81,9 @@
     render();
   }
   function togglePause() {
-    clearInput();game.pause();render();
+    clearInput();
+    if(network.active) {network.send({type:game.state==='paused'?'resume':'pause'});return;}
+    game.pause();render();
     if(game.state==='playing') board.focus({preventScroll:true});
   }
   function nextPreview(shape) {
@@ -69,13 +125,19 @@
     if(locked!==previousLocks && game.state==='playing') {
       $('match-status').textContent=game.lastFlips?`包圍翻轉 ${game.lastFlips} 格！`:'對戰進行中';previousLocks=locked;
     }
-    if(game.state===previousState) return;
-    previousState=game.state;
+    const stateKey=JSON.stringify([game.state,network.active,network.owner,network.connected,network.ready,game.sides[0].color]);
+    if(stateKey===previousState) return;
+    previousState=stateKey;
     const ready=game.state==='ready', paused=game.state==='paused', over=game.state==='over';
     $('overlay').hidden=game.state==='playing';$('color-picker').hidden=!ready;
-    $('pause').disabled=ready||over;$('restart').disabled=ready;
+    $('pause').disabled=ready||over;$('restart').disabled=ready||(network.active&&network.owner!==0);
+    $('start').disabled=false;
+    document.querySelectorAll('input[name="color"]').forEach(input=>{
+      input.disabled=network.active&&network.owner!==0;
+      if(network.active) input.checked=Number(input.value)===game.sides[0].color;
+    });
     $('pause').innerHTML=paused?'繼續 <kbd>Esc</kbd>':'暫停 <kbd>Esc</kbd>';
-    document.querySelectorAll('.touch-controls button').forEach(button=>button.disabled=game.state!=='playing');
+    document.querySelectorAll('.touch-controls button').forEach(button=>button.disabled=game.state!=='playing'||!owns(Number(button.dataset.owner)));
     if(ready) {
       $('overlay-kicker').textContent='READY TO FLIP?';$('overlay-title').textContent='準備好翻轉戰局？';
       $('overlay-description').innerHTML='兩位玩家，共用一個棋盤。<br>用方塊搶下你的領地。';
@@ -92,12 +154,28 @@
       $('overlay-description').textContent=`${colorName(game.sides[winner].color).slice(0,2)}佔領 ${score}% 領地・用時 ${$('clock').textContent}`;
       $('start').innerHTML='再戰一局 <span>↗</span>';$('overlay-note').textContent='或按「新對局」重新選色';
       $('match-status').textContent=`玩家${winner===0?'一':'二'}獲勝！`;clearInput();$('start').focus({preventScroll:true});
-    } else $('match-status').textContent='對戰進行中';
+    } else {clearInput();$('match-status').textContent='對戰進行中';if(!document.hidden) board.focus({preventScroll:true});}
+    if(network.active) {
+      $('ready').hidden=network.owner===null||!ready;
+      if(ready) {
+        clearInput();
+        $('overlay-title').textContent=network.owner===null?'正在連線…':'連線房間';
+        $('overlay-description').textContent=network.connected.every(Boolean)?'雙方按「我準備好了」，再由房主開始。':'等待對手加入。將主機 IP 告訴朋友。';
+        $('start').textContent='房主開始對戰';
+        $('start').disabled=network.owner!==0||!network.connected.every(Boolean)||!network.ready.every(Boolean);
+        $('overlay-note').textContent='準備按鈕位於上方「區域網路 / IP 連線對戰」';
+        $('match-status').textContent='等待雙方準備';
+      } else if(over) {
+        $('start').textContent=network.owner===0?'再戰 / 重新準備':'等待房主開啟新對局';
+        $('start').disabled=network.owner!==0;
+        $('overlay-note').textContent='再戰需雙方重新準備';
+      }
+    }
   }
-  $('start').addEventListener('click',()=>game.state==='paused'?togglePause():reset());
+  $('start').addEventListener('click',()=>game.state==='paused'?togglePause():reset(network.active&&game.state==='over'));
   $('pause').addEventListener('click',togglePause);
   $('restart').addEventListener('click',()=>{reset(true);$('start').focus({preventScroll:true});});
-  document.querySelectorAll('input[name="color"]').forEach(input=>input.addEventListener('change',()=>reset(true)));
+  document.querySelectorAll('input[name="color"]').forEach(input=>input.addEventListener('change',()=>network.active?network.send({type:'color',color:Number(input.value)}):reset(true)));
   const keys={ArrowLeft:[0,'left'],ArrowRight:[0,'right'],ArrowUp:[0,'rotate'],ArrowDown:[0,'soft'],Enter:[0,'drop'],KeyA:[1,'left'],KeyD:[1,'right'],KeyW:[1,'rotate'],KeyS:[1,'soft'],Space:[1,'drop']};
   document.addEventListener('keydown',event=>{
     if(event.code==='Escape') {if(!event.repeat) togglePause();return;}
@@ -108,21 +186,21 @@
     event.preventDefault();
     if(event.repeat) return;
     held.add(event.code);
-    action(...binding);
+    action(network.active?network.owner:binding[0],binding[1]);
   });
-  document.addEventListener('keyup',event=>held.delete(event.code));
+  document.addEventListener('keyup',event=>{held.delete(event.code);if(['ArrowDown','KeyS'].includes(event.code)) sendSoft(false);});
   document.querySelectorAll('.touch-controls button').forEach(button=>{
     button.addEventListener('pointerdown',event=>{
-      if(game.state!=='playing') return;
+      if(game.state!=='playing'||!owns(Number(button.dataset.owner))) return;
       event.preventDefault();button.setPointerCapture(event.pointerId);
       const owner=Number(button.dataset.owner),type=button.dataset.action;
       pointerHolds.set(event.pointerId,{owner,type,age:0,repeat:0});action(owner,type);
     });
-    const release=event=>pointerHolds.delete(event.pointerId);
+    const release=event=>{pointerHolds.delete(event.pointerId);sendSoft(false);};
     button.addEventListener('pointerup',release);button.addEventListener('pointercancel',release);button.addEventListener('lostpointercapture',release);
-    button.addEventListener('click',event=>{if(event.detail===0) {const owner=Number(button.dataset.owner);if(button.dataset.action==='soft') game.step(owner);else action(owner,button.dataset.action);render();}});
+    button.addEventListener('click',event=>{if(event.detail===0) {const owner=Number(button.dataset.owner);action(owner,button.dataset.action==='soft'?'step':button.dataset.action);render();}});
   });
-  function autoPause() {clearInput();if(game.state==='playing') {game.pause();render();}}
+  function autoPause() {clearInput();if(game.state==='playing') {if(network.active) network.send({type:'pause'});else game.pause();render();}}
   window.addEventListener('blur',autoPause);
   document.addEventListener('visibilitychange',()=>{if(document.hidden) autoPause();});
   const repeats=new Map();
@@ -133,7 +211,7 @@
       if(!held.has(code)) {repeats.delete(code);continue;}
       if(!['left','right'].includes(binding[1])) continue;
       const age=(repeats.get(code)||0)+dt, before=repeats.get(code)||0;
-      if(age>.22 && Math.floor((age-.22)/.09)>Math.floor((before-.22)/.09)) action(...binding);
+      if(age>.22 && Math.floor((age-.22)/.09)>Math.floor((before-.22)/.09)) action(network.active?network.owner:binding[0],binding[1]);
       repeats.set(code,age);
     }
     for(const hold of pointerHolds.values()) {
@@ -141,7 +219,7 @@
       if(hold.type==='soft') fast[hold.owner]=true;
       if(['left','right'].includes(hold.type)&&hold.age>.22&&hold.repeat>=.09) {hold.repeat=0;action(hold.owner,hold.type);}
     }
-    if(game.state==='playing') {game.tick(dt,fast);render();}
+    if(game.state==='playing') {if(network.active) sendSoft(fast.some(Boolean));else game.tick(dt,fast);render();}
     requestAnimationFrame(frame);
   }
   // Optional agent controls use the same actions as the visible game.
@@ -154,8 +232,11 @@
     register({name:'play_flip_blocks_move',description:'Move, rotate or drop one player’s active piece in the running match.',inputSchema:{type:'object',properties:{player:{type:'integer',enum:[1,2]},action:{type:'string',enum:['left','right','rotate','drop']}},required:['player','action'],additionalProperties:false},annotations:{readOnlyHint:false},execute:input=>{
       if(!input||![1,2].includes(input.player)||!['left','right','rotate','drop'].includes(input.action)) throw new Error('Invalid player or action');
       if(game.state!=='playing') throw new Error('Start or resume the match first');
+      if(!owns(input.player-1)) throw new Error('You can only control your own player');
       action(input.player-1,input.action);return {state:game.state,counts:game.counts(),winner:game.winner};
     }});
   }
+  window.addEventListener('pagehide',()=>network.leave());
   render();requestAnimationFrame(frame);
+  if(new URLSearchParams(location.search).get('join')==='1') connect('guest');
 })();
