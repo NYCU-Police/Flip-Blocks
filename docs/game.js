@@ -212,6 +212,35 @@
   function clearInput() {held.clear();pointerHolds.clear();sendSoft(false);}
   function selectedMode() {return playMode==='ai'?'ai':'local';}
   function selectedDifficulty() {return document.querySelector('input[name="difficulty"]:checked')?.value||'normal';}
+  const SCHEME_KEY='flip-blocks-control-scheme';
+  function selectedScheme() {return document.querySelector('input[name="scheme"]:checked')?.value==='alternate'?'alternate':'classic';}
+  function saveScheme(value) {
+    const id=value==='alternate'?'alternate':'classic';
+    try {localStorage.setItem(SCHEME_KEY,id);} catch {}
+    return id;
+  }
+  function loadScheme() {
+    try {if(localStorage.getItem(SCHEME_KEY)==='alternate') return 'alternate';} catch {}
+    return 'classic';
+  }
+  function controlMap() {
+    const alt=selectedScheme()==='alternate';
+    const p1=alt
+      ?{ArrowLeft:[0,'left'],ArrowRight:[0,'right'],KeyZ:[0,'ccw'],KeyX:[0,'rotate'],ArrowDown:[0,'soft'],ArrowUp:[0,'drop'],Enter:[0,'drop']}
+      :{ArrowLeft:[0,'left'],ArrowRight:[0,'right'],ArrowUp:[0,'rotate'],ArrowDown:[0,'soft'],Enter:[0,'drop']};
+    const p2={KeyA:[1,'left'],KeyD:[1,'right'],KeyW:[1,'rotate'],KeyS:[1,'soft'],Space:[1,'drop']};
+    const localTwo=!network.active&&playMode!=='ai';
+    if(localTwo) return Object.assign({},p1,p2);
+    if(!alt) p1.Space=[0,'drop'];
+    return p1;
+  }
+  function syncControlGuide() {
+    const binds=$('p1-binds');
+    if(!binds) return;
+    binds.innerHTML=selectedScheme()==='alternate'
+      ?'<p><span>左右移動</span><span><kbd>←</kbd> <kbd>→</kbd></span></p><p><span>旋轉</span><span><kbd>Z</kbd> <kbd>X</kbd></span></p><p><span>加速 / 落定</span><span><kbd>↓</kbd> <kbd>↑</kbd></span></p>'
+      :'<p><span>左右移動</span><span><kbd>←</kbd> <kbd>→</kbd></span></p><p><span>旋轉 / 加速</span><span><kbd>↑</kbd> <kbd>↓</kbd></span></p><p><span>直接落定</span><kbd>Enter</kbd></p>';
+  }
   function dropScale() {
     if(playMode!=='ai'||network.active) return 1;
     const spec=FlipAI?.DIFFICULTIES?.[selectedDifficulty()];
@@ -265,11 +294,16 @@
   }
   function action(owner,type) {
     if(game.state!=='playing'||!owns(owner)) return;
-    if(network.active) {if(type!=='soft') network.send({type:'input',action:type});return;}
+    if(network.active) {
+      if(type==='ccw') {network.send({type:'input',action:'rotate'});network.send({type:'input',action:'rotate'});network.send({type:'input',action:'rotate'});return;}
+      if(type!=='soft') network.send({type:'input',action:type});
+      return;
+    }
     if(type==='step') game.step(owner);
     if(type==='left') game.move(owner,-1);
     if(type==='right') game.move(owner,1);
     if(type==='rotate') game.rotate(owner);
+    if(type==='ccw') {game.rotate(owner);game.rotate(owner);game.rotate(owner);}
     if(type==='drop') game.step(owner,true);
     render();
   }
@@ -331,7 +365,7 @@
       cueMatch(counts);previousLocks=locked;
     }
     if(game.state==='over') cueMatch(counts);
-    const stateKey=JSON.stringify([game.state,network.active,network.owner,network.connected,network.ready,game.sides[0].color,remainSecs(),network.pendingReconnect,network.message,playMode,selectedDifficulty(),network.code,network.names,network.spectating,network.spectators,onlineMode,$('play-stage').hidden]);
+    const stateKey=JSON.stringify([game.state,network.active,network.owner,network.connected,network.ready,game.sides[0].color,remainSecs(),network.pendingReconnect,network.message,playMode,selectedDifficulty(),selectedScheme(),network.code,network.names,network.spectating,network.spectators,onlineMode,$('play-stage').hidden]);
     if(stateKey===previousState) return;
     previousState=stateKey;
     const ready=game.state==='ready', paused=game.state==='paused', over=game.state==='over';
@@ -340,6 +374,7 @@
     $('color-picker').hidden=!ready||waiting||restoring;
     $('mode-picker').hidden=true;
     $('difficulty-picker').hidden=!ready||waiting||restoring||network.active||playMode!=='ai';
+    $('scheme-picker').hidden=waiting||restoring||network.spectating;
     $('pause').disabled=ready||over||waiting||restoring||network.spectating||$('play-stage').hidden;$('restart').disabled=ready||waiting||restoring||network.spectating||$('play-stage').hidden||(network.active&&network.owner!==0);
     $('start').disabled=false;
     document.querySelectorAll('input[name="color"]').forEach(input=>{
@@ -362,7 +397,9 @@
       clearInput();
     } else if(ready) {
       $('overlay-kicker').textContent='READY TO FLIP?';$('overlay-title').textContent=playMode==='ai'?'單人對戰 AI':'準備好翻轉戰局？';
-      $('overlay-description').innerHTML=playMode==='ai'?'你操作玩家一（方向鍵 + Enter）。<br>AI 操作玩家二。':'兩位玩家，共用一個棋盤。<br>用方塊搶下你的領地。';
+      $('overlay-description').innerHTML=playMode==='ai'
+        ?(selectedScheme()==='alternate'?'你操作玩家一（Z / X 旋轉，↑ 落定）。<br>AI 操作玩家二。':'你操作玩家一（方向鍵 + Enter）。<br>AI 操作玩家二。')
+        :'兩位玩家，共用一個棋盤。<br>用方塊搶下你的領地。';
       $('start').innerHTML=playMode==='ai'?'開始對戰 AI <span>↗</span>':'開始對戰 <span>↗</span>';
       $('overlay-note').textContent=($('session-record')?.textContent)||(playMode==='ai'?'選好難度與顏色後開始':'請兩位玩家就位');
       $('match-status').textContent='等待開始';refreshRecord();
@@ -413,10 +450,12 @@
   document.querySelectorAll('input[name="difficulty"]').forEach(input=>input.addEventListener('change',()=>{
     FlipAI?.saveDifficulty(selectedDifficulty());previousState='';render();
   }));
-  const keys={ArrowLeft:[0,'left'],ArrowRight:[0,'right'],ArrowUp:[0,'rotate'],ArrowDown:[0,'soft'],Enter:[0,'drop'],KeyA:[1,'left'],KeyD:[1,'right'],KeyW:[1,'rotate'],KeyS:[1,'soft'],Space:[1,'drop']};
+  document.querySelectorAll('input[name="scheme"]').forEach(input=>input.addEventListener('change',()=>{
+    saveScheme(selectedScheme());syncControlGuide();previousState='';render();
+  }));
   document.addEventListener('keydown',event=>{
     if(event.code==='Escape') {if(!event.repeat) togglePause();return;}
-    const binding=keys[event.code];
+    const binding=controlMap()[event.code];
     if(!binding||game.state!=='playing'||event.ctrlKey||event.metaKey||event.altKey) return;
     if(playMode==='ai'&&!network.active&&binding[0]===1) return;
     if(event.target.closest('button,input,a')) return;
@@ -425,7 +464,11 @@
     held.add(event.code);
     action(network.active?network.owner:binding[0],binding[1]);
   });
-  document.addEventListener('keyup',event=>{held.delete(event.code);if(['ArrowDown','KeyS'].includes(event.code)) sendSoft(false);});
+  document.addEventListener('keyup',event=>{
+    held.delete(event.code);
+    const binding=controlMap()[event.code];
+    if(binding?.[1]==='soft'||event.code==='KeyS'||event.code==='ArrowDown') sendSoft(false);
+  });
   document.querySelectorAll('.touch-controls button').forEach(button=>{
     button.addEventListener('pointerdown',event=>{
       if(game.state!=='playing'||!owns(Number(button.dataset.owner))) return;
@@ -443,8 +486,10 @@
   const repeats=new Map();
   function frame(time) {
     const dt=lastTime?Math.min((time-lastTime)/1000,.1):0;lastTime=time;
-    const fast=[held.has('ArrowDown'),held.has('KeyS')];
-    for(const [code,binding] of Object.entries(keys)) {
+    const map=controlMap();
+    const fast=[false,false];
+    for(const [code,binding] of Object.entries(map)) if(held.has(code)&&binding[1]==='soft') fast[binding[0]]=true;
+    for(const [code,binding] of Object.entries(map)) {
       if(!held.has(code)) {repeats.delete(code);continue;}
       if(!['left','right'].includes(binding[1])) continue;
       const age=(repeats.get(code)||0)+dt, before=repeats.get(code)||0;
@@ -499,6 +544,10 @@
     const radio=document.querySelector(`input[name="difficulty"][value="${savedDiff}"]`);
     if(radio) radio.checked=true;
   }
+  const savedScheme=loadScheme();
+  const schemeRadio=document.querySelector(`input[name="scheme"][value="${savedScheme}"]`);
+  if(schemeRadio) schemeRadio.checked=true;
+  syncControlGuide();
   const savedName=FlipNetwork.loadName();
   if(savedName) $('nickname').value=savedName;
   async function refreshLeaderboard() {
