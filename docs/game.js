@@ -204,6 +204,18 @@
   }
   const pct=count=>Number((count/2).toFixed(1)).toString();
   const colorName=color=>color===1?'黑方 ↓':'白方 ↑';
+  function explainWin(g) {
+    if(!g||g.winner===null||g.winner===undefined) return {kind:'none',text:'對局結束'};
+    const color=g.sides[g.winner].color;
+    const n=g.counts()[color-1];
+    const score=pct(n);
+    const who=color===1?'黑方':'白方';
+    if(n>=140) return {kind:'threshold',text:`${who}佔領 ${score}%，達成 70% 目標！`};
+    const allRows=Array.isArray(g.board[0])&&g.board.every(row=>row.includes(color));
+    if(allRows) return {kind:'rows',text:`${who}已在全部 20 列現身，以 ${score}% 佔領獲勝`};
+    return {kind:'other',text:`對局結束 · ${who}以 ${score}% 佔領獲勝`};
+  }
+  FlipBlocks.explainWin=explainWin;
   function refreshRecord() {
     if(!globalThis.FlipRecord) return;
     $('session-record').textContent=FlipRecord.format(FlipRecord.load(),network.active,network.owner,playMode==='ai'&&!network.active);
@@ -434,11 +446,14 @@
       $('start').innerHTML='繼續對戰 <span>→</span>';$('overlay-note').textContent='也可以按 Esc 繼續';
       $('match-status').textContent='已暫停';clearInput();$('start').focus({preventScroll:true});
     } else if(over) {
-      const winner=game.winner,score=pct(counts[game.sides[winner].color-1]);
+      const winner=game.winner,reason=explainWin(game);
       $('overlay-kicker').textContent='TERRITORY CLAIMED';
       $('overlay-title').textContent=playMode==='ai'?(winner===0?'你獲勝！':'AI 獲勝！'):`玩家${winner===0?'一':'二'}獲勝！`;
-      $('overlay-description').textContent=`${colorName(game.sides[winner].color).slice(0,2)}佔領 ${score}% 領地・用時 ${$('clock').textContent}`;
-      $('start').innerHTML='再戰一局 <span>↗</span>';$('overlay-note').textContent='或按「新對局」重新選色';
+      $('overlay-description').textContent=`${reason.text}・用時 ${$('clock').textContent}`;
+      $('start').innerHTML='再戰一局 <span>↗</span>';
+      $('overlay-note').textContent=reason.kind==='rows'
+        ?'己方顏色出現在全部 20 列即可取勝，不必先到 70%。'
+        :'或按「新對局」重新選色';
       $('match-status').textContent=playMode==='ai'?(winner===0?'你獲勝！':'AI 獲勝！'):`玩家${winner===0?'一':'二'}獲勝！`;
       clearInput();$('start').focus({preventScroll:true});
     } else {clearInput();$('match-status').textContent='對戰進行中';if(!document.hidden) board.focus({preventScroll:true});}
