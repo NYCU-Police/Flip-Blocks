@@ -5,10 +5,12 @@
   const board=$('board'), tiles=[], held=new Set(), pointerHolds=new Map();
   let lastTime=0, previousState='', previousQueues='', previousLocks=0;
   let previousBoardKey='', previousClock='', previousHud='';
-  let softSent=false, softAt=0, wasNetwork=false;
+  let softSent=false, softAt=0, wasNetwork=false, heardOver=false;
   const network=new FlipNetwork.Connection(networkChanged, snapshot=>{
     FlipNetwork.applyGame(game,snapshot);
     previousBoardKey=''; previousState='';
+    previousLocks=game.locked[0]+game.locked[1];
+    heardOver=game.state==='over';
     render();
   });
   function remainSecs() {
@@ -33,6 +35,7 @@
       panel.classList.toggle('remote',joined&&owner!==network.owner);
       panel.classList.toggle('self',joined&&owner===network.owner);
     }
+    refreshRecord();
     render();
   }
   function connect(role) {
@@ -69,6 +72,32 @@
   }
   const pct=count=>Number((count/2).toFixed(1)).toString();
   const colorName=color=>color===1?'黑方 ↓':'白方 ↑';
+  function refreshRecord() {
+    if(!globalThis.FlipRecord) return;
+    $('session-record').textContent=FlipRecord.format(FlipRecord.load(),network.active,network.owner);
+  }
+  function syncMute() {
+    if(!globalThis.FlipAudio) return;
+    const muted=FlipAudio.isMuted();
+    $('mute').textContent=muted?'音效關':'音效開';
+    $('mute').setAttribute('aria-pressed',muted?'true':'false');
+  }
+  function cueMatch(counts) {
+    const locked=game.locked[0]+game.locked[1];
+    if(game.state==='playing'&&locked>previousLocks) {
+      FlipAudio?.play('lock');
+      if(game.lastFlips) FlipAudio?.play(game.lastFlips>=4?'capture':'flip');
+    }
+    if(game.state==='over'&&!heardOver&&game.winner!==null) {
+      heardOver=true;
+      const mine=network.active?network.owner:null;
+      FlipAudio?.play(mine===null||mine===game.winner?'win':'lose');
+      FlipRecord?.recordOutcome(game.winner,mine);
+      refreshRecord();
+    }
+    if(game.state!=='over') heardOver=false;
+    void counts;
+  }
   function clearInput() {held.clear();pointerHolds.clear();sendSoft(false);}
   function reset(ready=false) {
     if(network.active) {network.send({type:ready?'restart':'start'});return;}
@@ -139,9 +168,11 @@
     const clock=`${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
     if(clock!==previousClock) {previousClock=clock;$('clock').textContent=clock;}
     const locked=game.locked[0]+game.locked[1];
-    if(locked!==previousLocks && game.state==='playing') {
-      $('match-status').textContent=game.lastFlips?`包圍翻轉 ${game.lastFlips} 格！`:'對戰進行中';previousLocks=locked;
+    if(locked!==previousLocks) {
+      if(game.state==='playing') $('match-status').textContent=game.lastFlips?`包圍翻轉 ${game.lastFlips} 格！`:'對戰進行中';
+      cueMatch(counts);previousLocks=locked;
     }
+    if(game.state==='over') cueMatch(counts);
     const stateKey=JSON.stringify([game.state,network.active,network.owner,network.connected,network.ready,game.sides[0].color,remainSecs(),network.pendingReconnect,network.message]);
     if(stateKey===previousState) return;
     previousState=stateKey;
@@ -170,8 +201,8 @@
     } else if(ready) {
       $('overlay-kicker').textContent='READY TO FLIP?';$('overlay-title').textContent='準備好翻轉戰局？';
       $('overlay-description').innerHTML='兩位玩家，共用一個棋盤。<br>用方塊搶下你的領地。';
-      $('start').innerHTML='開始對戰 <span>↗</span>';$('overlay-note').textContent='請兩位玩家就位';
-      $('match-status').textContent='等待開始';
+      $('start').innerHTML='開始對戰 <span>↗</span>';$('overlay-note').textContent=($('session-record')?.textContent)||'請兩位玩家就位';
+      $('match-status').textContent='等待開始';refreshRecord();
     } else if(paused) {
       $('overlay-kicker').textContent='TAKE A BREATHER';$('overlay-title').textContent='對戰已暫停';
       $('overlay-description').textContent='準備好了，就回到棋盤繼續爭奪。';
@@ -266,6 +297,9 @@
     }});
   }
   window.addEventListener('pagehide',()=>network.disconnect());
+  $('mute').addEventListener('click',()=>{FlipAudio?.setMuted(!FlipAudio.isMuted());syncMute();});
+  document.addEventListener('pointerdown',()=>FlipAudio?.unlock(),{once:true});
+  syncMute();refreshRecord();
   render();requestAnimationFrame(frame);
   const joining=new URLSearchParams(location.search).get('join')==='1';
   if(!(['http:','https:'].includes(location.protocol)&&network.resumeSession())&&joining) connect('guest');
