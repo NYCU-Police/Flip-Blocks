@@ -94,7 +94,7 @@
   }
   function remainText(deadline) {
     const secs = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
-    return `對方斷線，等待重連中（剩餘 ${secs} 秒）`;
+    return `對手斷線，${secs} 秒內可重連…`;
   }
   class Connection {
     constructor(onChange, onState) {
@@ -139,14 +139,14 @@
       this.intentionalLeave = false;
       const url = new URL('/match', location.href); url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
       let ws;
-      try { ws = new WebSocket(url); } catch { this.fail('請先啟動連線主機，再開啟主機提供的網址。'); return; }
+      try { ws = new WebSocket(url); } catch { this.fail('無法連到對戰伺服器，請稍後再試。'); return; }
       this.socket = ws;
       this.lastMessage = Date.now();
       this.watchdog = setInterval(() => {
         if (this.socket === ws && Date.now() - this.lastMessage > 15000) ws.close();
       }, 1000);
       const timeout = setTimeout(() => {
-        if (this.socket === ws && this.owner === null && !this.pendingReconnect && !this.spectating) this.fail('連線逾時，請確認主機已啟動及 IP 正確。');
+        if (this.socket === ws && this.owner === null && !this.pendingReconnect && !this.spectating) this.fail('連線逾時，請稍後再試。');
         else if (this.socket === ws && this.pendingReconnect && this.owner === null) ws.close();
       }, 8000);
       ws.onopen = () => {
@@ -203,7 +203,7 @@
           this.onChange();
         }
       };
-      ws.onerror = () => { if (this.socket === ws) this.message = '無法連線，請確認已執行 npm start、IP／連接埠正確，且防火牆允許連線。'; };
+      ws.onerror = () => { if (this.socket === ws) this.message = '無法連線，請稍後再試。'; };
       ws.onclose = () => {
         clearTimeout(timeout);
         if (this.socket !== ws) return;
