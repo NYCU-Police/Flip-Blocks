@@ -6,7 +6,7 @@
   let lastTime=0, previousState='', previousQueues='', previousLocks=0;
   let previousBoardKey='', previousClock='', previousHud='';
   let softSent=false, softAt=0, wasNetwork=false, heardOver=false;
-  let playMode='local', onlineMode=false, ai=null;
+  let playMode='local', onlineMode=false, ai=null, gesture=null, gestureCoachOn=false, wasPlaying=false;
   const network=new FlipNetwork.Connection(networkChanged, snapshot=>{
     FlipNetwork.applyGame(game,snapshot);
     previousBoardKey=''; previousState='';
@@ -63,6 +63,8 @@
     if(onlineMode&&!network.active) $('nickname').focus();
   }
   function exitMode() {
+    gestureCoachOn=false;
+    if($('gesture-coach')) $('gesture-coach').hidden=true;
     if(network.active) network.leave();
     network.message='';
     stopAI();
@@ -209,7 +211,7 @@
     if(game.state!=='over') heardOver=false;
     void counts;
   }
-  function clearInput() {held.clear();pointerHolds.clear();sendSoft(false);}
+  function clearInput() {held.clear();pointerHolds.clear();gesture=null;sendSoft(false);}
   function selectedMode() {return playMode==='ai'?'ai':'local';}
   function selectedDifficulty() {return document.querySelector('input[name="difficulty"]:checked')?.value||'normal';}
   const SCHEME_KEY='flip-blocks-control-scheme';
@@ -322,6 +324,9 @@
     return `<div class="preview"><svg viewBox="0 0 48 48" role="img" aria-label="${shape} 型方塊">${points.map(([x,y])=>`<rect x="${xOffset+(x-minX)*10}" y="${yOffset+(maxY-y)*10}" width="8" height="8" rx="1" fill="currentColor"/>`).join('')}</svg></div>`;
   }
   function render() {
+    document.body.classList.toggle('match-playing',game.state==='playing'&&!$('play-stage').hidden);
+    if(game.state==='playing'&&!wasPlaying) maybeShowGestureCoach();
+    wasPlaying=game.state==='playing';
     const counts=game.counts(), classes=new Map();
     const boardKey=(Array.isArray(game.board[0])?game.board.flat().join(''):String(game.board))+JSON.stringify(game.pieces)+game.state;
     if(boardKey!==previousBoardKey) {
@@ -458,7 +463,7 @@
     const binding=controlMap()[event.code];
     if(!binding||game.state!=='playing'||event.ctrlKey||event.metaKey||event.altKey) return;
     if(playMode==='ai'&&!network.active&&binding[0]===1) return;
-    if(event.target.closest('button,input,a')) return;
+    if(event.target?.closest?.('button,input,a')) return;
     event.preventDefault();
     if(event.repeat) return;
     held.add(event.code);
@@ -480,12 +485,66 @@
     button.addEventListener('pointerup',release);button.addEventListener('pointercancel',release);button.addEventListener('lostpointercapture',release);
     button.addEventListener('click',event=>{if(event.detail===0) {const owner=Number(button.dataset.owner);action(owner,button.dataset.action==='soft'?'step':button.dataset.action);render();}});
   });
+  const GESTURE_KEY='flip-blocks-seen-gestures';
+  function isPhoneWidth() {return window.matchMedia('(max-width: 650px)').matches;}
+  function gestureOwner() {
+    if(network.spectating) return null;
+    if(network.active) return network.owner;
+    return 0;
+  }
+  function cellWidth() {return board.clientWidth/10||24;}
+  function maybeShowGestureCoach() {
+    if(gestureCoachOn||!isPhoneWidth()||$('play-stage').hidden) return;
+    try {if(localStorage.getItem(GESTURE_KEY)) return;} catch {}
+    gestureCoachOn=true;
+    $('gesture-coach').hidden=false;
+  }
+  function dismissGestureCoach() {
+    if($('gesture-coach').hidden&&!gestureCoachOn) return;
+    gestureCoachOn=false;
+    $('gesture-coach').hidden=true;
+    try {localStorage.setItem(GESTURE_KEY,'1');} catch {}
+  }
+  $('gesture-coach').addEventListener('pointerdown',event=>{event.preventDefault();dismissGestureCoach();});
+  function onBoardGesture(event) {
+    if(game.state!=='playing'||gestureCoachOn||event.pointerType==='mouse') return;
+    const owner=gestureOwner();
+    if(owner===null||!owns(owner)) return;
+    event.preventDefault();
+    try {board.setPointerCapture(event.pointerId);} catch {}
+    gesture={id:event.pointerId,owner,x:event.clientX,y:event.clientY,t:performance.now(),cells:0,soft:false,moved:false};
+  }
+  function moveBoardGesture(event) {
+    if(!gesture||event.pointerId!==gesture.id) return;
+    event.preventDefault();
+    const size=cellWidth(), dx=event.clientX-gesture.x, dy=event.clientY-gesture.y;
+    if(Math.abs(dx)>=10||Math.abs(dy)>=10) gesture.moved=true;
+    const next=Math.round(dx/size);
+    while(gesture.cells<next) {action(gesture.owner,'right');gesture.cells++;}
+    while(gesture.cells>next) {action(gesture.owner,'left');gesture.cells--;}
+    if(dy>size*0.55&&dy>=Math.abs(dx)) gesture.soft=true;
+    else if(dy<size*0.25) gesture.soft=false;
+  }
+  function endBoardGesture(event) {
+    if(!gesture||event.pointerId!==gesture.id) return;
+    const dx=event.clientX-gesture.x, dy=event.clientY-gesture.y, dt=performance.now()-gesture.t, owner=gesture.owner, moved=gesture.moved;
+    gesture=null;sendSoft(false);
+    if(!moved&&dt<400) {action(owner,'rotate');return;}
+    if(dy>32&&dt<220&&dy>Math.abs(dx)*1.15) action(owner,'drop');
+  }
+  board.addEventListener('pointerdown',onBoardGesture);
+  board.addEventListener('pointermove',moveBoardGesture);
+  board.addEventListener('pointerup',endBoardGesture);
+  board.addEventListener('pointercancel',endBoardGesture);
+  board.addEventListener('lostpointercapture',endBoardGesture);
+  board.addEventListener('touchmove',event=>{if(game.state==='playing') event.preventDefault();},{passive:false});
   function autoPause() {if(network.spectating) return;clearInput();if(game.state==='playing') {if(network.active) network.send({type:'pause'});else game.pause();render();}}
   window.addEventListener('blur',autoPause);
   document.addEventListener('visibilitychange',()=>{if(document.hidden) autoPause();});
   const repeats=new Map();
   function frame(time) {
     const dt=lastTime?Math.min((time-lastTime)/1000,.1):0;lastTime=time;
+    document.body.classList.toggle('match-playing',game.state==='playing'&&!$('play-stage').hidden);
     const map=controlMap();
     const fast=[false,false];
     for(const [code,binding] of Object.entries(map)) if(held.has(code)&&binding[1]==='soft') fast[binding[0]]=true;
@@ -501,9 +560,10 @@
       if(hold.type==='soft') fast[hold.owner]=true;
       if(['left','right'].includes(hold.type)&&hold.age>.22&&hold.repeat>=.09) {hold.repeat=0;action(hold.owner,hold.type);}
     }
+    if(gesture?.soft) fast[gesture.owner]=true;
     if(game.state==='playing') {
       if(network.active) sendSoft(fast.some(Boolean));
-      else {
+      else if(!gestureCoachOn) {
         if(ai) ai.tick(dt);
         if(game.state==='playing') tickLocal(dt,fast);
         render();
