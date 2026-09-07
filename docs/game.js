@@ -8,6 +8,9 @@
   const network=new FlipNetwork.Connection(networkChanged, snapshot=>{
     Object.assign(game,snapshot); render();
   });
+  function remainSecs() {
+    return network.reconnect?Math.max(0,Math.ceil((network.reconnect.deadline-Date.now())/1000)):-1;
+  }
   function networkChanged() {
     if(wasNetwork&&!network.active) {clearInput();game.state='ready';}
     wasNetwork=network.active;
@@ -15,10 +18,12 @@
     $('mode-label').textContent=network.active?'區域網路對戰':'同機雙人對戰';
     $('host').disabled=network.active;$('join').disabled=network.active;
     $('join-ip').disabled=network.active;$('server-address').disabled=network.active;
-    $('leave').hidden=!network.active;$('ready').hidden=!joined||game.state!=='ready';
+    $('leave').hidden=!network.active;$('ready').hidden=!joined||game.state!=='ready'||network.reconnect||network.pendingReconnect;
     $('ready').textContent=network.ready[network.owner]?'取消準備':'我準備好了';
+    const secs=remainSecs();
     $('network-status').textContent=network.message||(joined?
-      `你是玩家${network.owner+1} · ${both?'雙方已連線':'等待玩家二加入'} · P1 ${network.ready[0]?'已準備':'未準備'} / P2 ${network.ready[1]?'已準備':'未準備'}`:
+      (network.reconnect?`對方斷線，等待重連中（剩餘 ${secs} 秒）`:
+      `你是玩家${network.owner+1} · ${both?'雙方已連線':'等待玩家二加入'} · P1 ${network.ready[0]?'已準備':'未準備'} / P2 ${network.ready[1]?'已準備':'未準備'}`):
       '尚未連線。每個主機提供一間雙人房。');
     for(let owner=0;owner<2;owner++) {
       const panel=document.querySelector(owner===0?'.player-one':'.player-two');
@@ -125,12 +130,13 @@
     if(locked!==previousLocks && game.state==='playing') {
       $('match-status').textContent=game.lastFlips?`包圍翻轉 ${game.lastFlips} 格！`:'對戰進行中';previousLocks=locked;
     }
-    const stateKey=JSON.stringify([game.state,network.active,network.owner,network.connected,network.ready,game.sides[0].color]);
+    const stateKey=JSON.stringify([game.state,network.active,network.owner,network.connected,network.ready,game.sides[0].color,remainSecs(),network.pendingReconnect,network.message]);
     if(stateKey===previousState) return;
     previousState=stateKey;
     const ready=game.state==='ready', paused=game.state==='paused', over=game.state==='over';
-    $('overlay').hidden=game.state==='playing';$('color-picker').hidden=!ready;
-    $('pause').disabled=ready||over;$('restart').disabled=ready||(network.active&&network.owner!==0);
+    const waiting=Boolean(network.reconnect), restoring=Boolean(network.pendingReconnect);
+    $('overlay').hidden=game.state==='playing'&&!waiting&&!restoring;$('color-picker').hidden=!ready||waiting||restoring;
+    $('pause').disabled=ready||over||waiting||restoring;$('restart').disabled=ready||waiting||restoring||(network.active&&network.owner!==0);
     $('start').disabled=false;
     document.querySelectorAll('input[name="color"]').forEach(input=>{
       input.disabled=network.active&&network.owner!==0;
@@ -138,7 +144,18 @@
     });
     $('pause').innerHTML=paused?'繼續 <kbd>Esc</kbd>':'暫停 <kbd>Esc</kbd>';
     document.querySelectorAll('.touch-controls button').forEach(button=>button.disabled=game.state!=='playing'||!owns(Number(button.dataset.owner)));
-    if(ready) {
+    if(waiting||restoring) {
+      const secs=remainSecs();
+      $('overlay-kicker').textContent='CONNECTION LOST';
+      $('overlay-title').textContent=restoring?'連線已中斷，正在重新連線…':'對方斷線，等待重連中';
+      $('overlay-description').textContent=restoring?'正在以工作階段憑證認領原座位，恢復後會從快照繼續。':
+        `對局已暫停並保留棋盤與方塊。剩餘 ${secs} 秒。`;
+      $('start').textContent=restoring?'正在重新連線':'等待對手重連';
+      $('start').disabled=true;
+      $('overlay-note').textContent='逾時未歸則判留下的玩家獲勝';
+      $('match-status').textContent=restoring?'正在重新連線':`等待重連 ${secs}s`;
+      clearInput();
+    } else if(ready) {
       $('overlay-kicker').textContent='READY TO FLIP?';$('overlay-title').textContent='準備好翻轉戰局？';
       $('overlay-description').innerHTML='兩位玩家，共用一個棋盤。<br>用方塊搶下你的領地。';
       $('start').innerHTML='開始對戰 <span>↗</span>';$('overlay-note').textContent='請兩位玩家就位';
@@ -155,7 +172,7 @@
       $('start').innerHTML='再戰一局 <span>↗</span>';$('overlay-note').textContent='或按「新對局」重新選色';
       $('match-status').textContent=`玩家${winner===0?'一':'二'}獲勝！`;clearInput();$('start').focus({preventScroll:true});
     } else {clearInput();$('match-status').textContent='對戰進行中';if(!document.hidden) board.focus({preventScroll:true});}
-    if(network.active) {
+    if(network.active&&!waiting&&!restoring) {
       $('ready').hidden=network.owner===null||!ready;
       if(ready) {
         clearInput();
@@ -220,6 +237,7 @@
       if(['left','right'].includes(hold.type)&&hold.age>.22&&hold.repeat>=.09) {hold.repeat=0;action(hold.owner,hold.type);}
     }
     if(game.state==='playing') {if(network.active) sendSoft(fast.some(Boolean));else game.tick(dt,fast);render();}
+    else if(network.reconnect||network.pendingReconnect) render();
     requestAnimationFrame(frame);
   }
   // Optional agent controls use the same actions as the visible game.
@@ -236,7 +254,8 @@
       action(input.player-1,input.action);return {state:game.state,counts:game.counts(),winner:game.winner};
     }});
   }
-  window.addEventListener('pagehide',()=>network.leave());
+  window.addEventListener('pagehide',()=>network.disconnect());
   render();requestAnimationFrame(frame);
-  if(new URLSearchParams(location.search).get('join')==='1') connect('guest');
+  const joining=new URLSearchParams(location.search).get('join')==='1';
+  if(!(['http:','https:'].includes(location.protocol)&&network.resumeSession())&&joining) connect('guest');
 })();

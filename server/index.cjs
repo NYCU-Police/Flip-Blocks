@@ -3,14 +3,20 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const crypto = require('node:crypto');
 const { WebSocketServer, WebSocket } = require('ws');
 const { Game } = require('../docs/game-core.js');
 
+const RECONNECT_MS = 60000;
+
 // A server owns one two-player room. Clients send actions, never board state.
-function createServer({ heartbeatMs = 5000 } = {}) {
+function createServer({ heartbeatMs = 5000, reconnectMs = RECONNECT_MS } = {}) {
   const game = new Game();
   const players = [null, null], fast = [false, false], fastUntil = [0, 0];
   const ready = [false, false];
+  const sessions = [null, null];
+  const reconnecting = [null, null];
+  let pausedForReconnect = false;
   let revision = 0;
   const assets = new Map([
     ['/', ['index.html', 'text/html']], ['/index.html', ['index.html', 'text/html']],
@@ -45,13 +51,92 @@ function createServer({ heartbeatMs = 5000 } = {}) {
       ws.send(JSON.stringify(data));
     }
   }
+  function reconnectInfo() {
+    const owner = reconnecting.findIndex(Boolean);
+    if (owner < 0) return null;
+    return { owner, deadline: reconnecting[owner].deadline };
+  }
   function broadcast() {
-    const data = { type: 'state', revision: ++revision, game, connected: players.map(Boolean), ready };
+    const data = { type: 'state', revision: ++revision, game, connected: players.map(Boolean), ready, reconnect: reconnectInfo() };
     for (const ws of players) send(ws, data);
   }
   function stopInput() { fast.fill(false); fastUntil.fill(0); }
+  function matchActive() { return game.state === 'playing' || game.state === 'paused'; }
+  function seatTaken(owner) { return Boolean(players[owner] || reconnecting[owner]); }
+  function issueToken() { return crypto.randomBytes(16).toString('hex'); }
+  function startReconnect(owner) {
+    players[owner] = null;
+    ready[owner] = false;
+    stopInput();
+    if (game.state === 'playing') {
+      game.pause();
+      pausedForReconnect = true;
+    }
+    const deadline = Date.now() + reconnectMs;
+    reconnecting[owner] = { deadline };
+    const payload = { type: 'reconnect-waiting', owner, deadline };
+    for (const ws of players) send(ws, payload);
+    broadcast();
+  }
+  function resumeIfReady() {
+    if (reconnecting.every(slot => !slot) && pausedForReconnect && game.state === 'paused' && players.every(Boolean)) {
+      game.pause();
+      pausedForReconnect = false;
+    }
+  }
+  function timeoutReconnect(owner) {
+    const remaining = 1 - owner;
+    reconnecting[owner] = null;
+    sessions[owner] = null;
+    players[owner] = null;
+    ready.fill(false);
+    stopInput();
+    pausedForReconnect = false;
+    const payload = { type: 'reconnect-timeout', owner, winner: remaining };
+    for (const ws of players) send(ws, payload);
+    game.reset(game.sides[0].color);
+    game.state = 'ready';
+    broadcast();
+  }
+  function lobbyDepart(owner) {
+    players[owner] = null;
+    sessions[owner] = null;
+    reconnecting[owner] = null;
+    ready.fill(false);
+    stopInput();
+    pausedForReconnect = false;
+    if (owner === 0) {
+      const guest = players[1];
+      players[1] = null;
+      sessions[1] = null;
+      send(guest, { type: 'error', message: '房主已離開，請重新加入或建立房間。' });
+      guest?.close(1000);
+      game.state = 'ready';
+    } else {
+      game.state = 'ready';
+      broadcast();
+    }
+  }
+  function forfeitToLobby(owner) {
+    reconnecting[owner] = null;
+    sessions[owner] = null;
+    players[owner] = null;
+    ready.fill(false);
+    stopInput();
+    pausedForReconnect = false;
+    game.reset(game.sides[0].color);
+    game.state = 'ready';
+    broadcast();
+  }
+  function claimSeat(ws, owner, token) {
+    players[owner] = ws;
+    ws.owner = owner;
+    sessions[owner] = token;
+    ready[owner] = false;
+  }
   wss.on('connection', ws => {
     ws.owner = -1; ws.alive = true; ws.messages = 0; ws.windowStart = Date.now();
+    ws.released = false;
     const joinTimer = setTimeout(() => { if (ws.owner === -1) ws.close(1008, 'Join timeout'); }, 10000);
     ws.on('error', () => {});
     ws.on('pong', () => { ws.alive = true; });
@@ -62,25 +147,53 @@ function createServer({ heartbeatMs = 5000 } = {}) {
       try { msg = JSON.parse(raw.toString()); } catch { ws.close(1008, 'Invalid JSON'); return; }
       if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return;
       if (ws.owner === -1) {
+        if (msg.type === 'reconnect') {
+          if (typeof msg.sessionToken !== 'string' || !msg.sessionToken) {
+            send(ws, { type: 'error', message: '無效的重連憑證。' }); ws.close(1008); return;
+          }
+          const owner = sessions.findIndex(token => token === msg.sessionToken);
+          if (owner < 0) {
+            send(ws, { type: 'error', message: '無效的重連憑證。' }); ws.close(1008); return;
+          }
+          if (players[owner]) {
+            send(ws, { type: 'error', message: '此座位仍在線，無法重連。' }); ws.close(1008); return;
+          }
+          claimSeat(ws, owner, sessions[owner]);
+          reconnecting[owner] = null;
+          clearTimeout(joinTimer);
+          resumeIfReady();
+          send(ws, { type: 'joined', owner, sessionToken: sessions[owner] });
+          const restored = { type: 'reconnected', owner };
+          for (const seat of players) send(seat, restored);
+          broadcast();
+          return;
+        }
         if (msg.type !== 'join' || !['host', 'guest'].includes(msg.role)) return;
         const owner = msg.role === 'host' ? 0 : 1;
-        const error = players[owner] ? '房間已有人，請稍後再試。' : owner === 1 && !players[0] ? '尚無房主，請先建立房間。' : '';
+        const error = seatTaken(owner) ? '房間已有人，請稍後再試。' : owner === 1 && !players[0] && !reconnecting[0] ? '尚無房主，請先建立房間。' : '';
         if (error) { send(ws, { type: 'error', message: error }); ws.close(1008); return; }
         if (owner === 0) { game.reset(msg.color === 2 ? 2 : 1); game.state = 'ready'; ready.fill(false); }
-        players[owner] = ws; ws.owner = owner; ready[owner] = false; clearTimeout(joinTimer);
-        send(ws, { type: 'joined', owner }); broadcast(); return;
+        claimSeat(ws, owner, issueToken());
+        clearTimeout(joinTimer);
+        send(ws, { type: 'joined', owner, sessionToken: sessions[owner] }); broadcast(); return;
       }
       const owner = ws.owner;
       if (players[owner] !== ws) return;
+      if (msg.type === 'leave') {
+        ws.released = true;
+        if (matchActive()) forfeitToLobby(owner);
+        else lobbyDepart(owner);
+        return;
+      }
       if (msg.type === 'ready' && game.state === 'ready') ready[owner] = !ready[owner];
       else if (msg.type === 'color' && owner === 0 && game.state === 'ready' && [1, 2].includes(msg.color)) {
         game.reset(msg.color); game.state = 'ready'; ready.fill(false);
       } else if (msg.type === 'start' && owner === 0 && game.state === 'ready' && players.every(Boolean) && ready.every(Boolean)) {
         game.reset(game.sides[0].color); stopInput();
-      } else if (msg.type === 'restart' && owner === 0 && game.state !== 'ready') {
+      } else if (msg.type === 'restart' && owner === 0 && game.state !== 'ready' && !reconnecting.some(Boolean)) {
         game.reset(game.sides[0].color); game.state = 'ready'; ready.fill(false); stopInput();
       } else if (msg.type === 'pause' && game.state === 'playing') { game.pause(); stopInput(); }
-      else if (msg.type === 'resume' && game.state === 'paused' && players.every(Boolean)) { game.pause(); stopInput(); }
+      else if (msg.type === 'resume' && game.state === 'paused' && players.every(Boolean) && !reconnecting.some(Boolean)) { game.pause(); stopInput(); }
       else if (msg.type === 'input' && game.state === 'playing') {
         // Ignore any owner supplied by the client; its socket determines its side.
         if (msg.action === 'left') game.move(owner, -1);
@@ -96,23 +209,18 @@ function createServer({ heartbeatMs = 5000 } = {}) {
     });
     ws.on('close', () => {
       clearTimeout(joinTimer);
+      if (ws.released) return;
       if (ws.owner < 0 || players[ws.owner] !== ws) return;
-      players[ws.owner] = null; ready.fill(false); stopInput();
-      if (ws.owner === 0) {
-        const guest = players[1]; players[1] = null;
-        send(guest, { type: 'error', message: '房主已離開，請重新加入或建立房間。' });
-        guest?.close(1000);
-        game.state = 'ready';
-      } else {
-        // Preserve the board for review; starting again needs a new ready check.
-        game.state = 'ready'; broadcast();
-      }
+      const owner = ws.owner;
+      if (matchActive()) startReconnect(owner);
+      else lobbyDepart(owner);
     });
   });
   let lastTick = performance.now();
   const tick = setInterval(() => {
     const now = performance.now(), dt = (now - lastTick) / 1000; lastTick = now;
     for (let i = 0; i < 2; i++) if (Date.now() > fastUntil[i]) fast[i] = false;
+    for (let i = 0; i < 2; i++) if (reconnecting[i] && Date.now() >= reconnecting[i].deadline) timeoutReconnect(i);
     if (game.state === 'playing') { game.tick(dt, fast); broadcast(); }
   }, 50);
   const heartbeat = setInterval(() => {
@@ -144,4 +252,4 @@ if (require.main === module) {
   });
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => app.close().then(() => process.exit()));
 }
-module.exports = { createServer };
+module.exports = { createServer, RECONNECT_MS };

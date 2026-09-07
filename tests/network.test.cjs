@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { once } = require('node:events');
 const { WebSocket } = require('ws');
 const { createServer } = require('../server/index.cjs');
-const { serverAddress } = require('../docs/network.js');
+const { serverAddress, reconnectDelay } = require('../docs/network.js');
 
 async function fixture(t, options) {
   const app = createServer(options);
@@ -17,8 +17,8 @@ async function fixture(t, options) {
     await once(ws, 'open');
     const send = data => ws.send(JSON.stringify(data));
     if (role) send({ type: 'join', role, color });
-    async function wait(predicate, after = 0) {
-      const end = Date.now() + 2500;
+    async function wait(predicate, after = 0, ms = 2500) {
+      const end = Date.now() + ms;
       while (Date.now() < end) {
         const found = messages.slice(after).find(predicate);
         if (found) return found;
@@ -48,6 +48,9 @@ test('IP entry accepts IP, port, IPv6 and HTTPS while rejecting unsafe URLs', ()
   for (const input of ['', 'javascript://alert(1)', 'ftp://host', 'http://a:b@host', 'host/path', 'host?x=1', 'host:99999']) {
     assert.throws(() => serverAddress(input));
   }
+  assert.equal(reconnectDelay(0), 500);
+  assert.equal(reconnectDelay(1), 1000);
+  assert.equal(reconnectDelay(4), 5000);
 });
 
 test('server serves the game and rejects unrelated files and cross-origin upgrades', async t => {
@@ -112,15 +115,100 @@ test('pause freezes simulation, resume synchronizes, rematch needs new preparati
   assert.deepEqual(reset.ready, [false, false]); assert.deepEqual(reset.game.locked, [0, 0]);
 });
 
-test('guest disconnect stops match and permits replacement; host departure closes room', async t => {
-  const { playing, client } = await fixture(t);
-  const { host, guest } = await playing();
-  guest.ws.close(); const stopped = await host.state(m => m.game.state === 'ready' && !m.connected[1] && m.revision > 3);
+test('guest leaving the lobby frees the seat; host departure closes room', async t => {
+  const { client } = await fixture(t);
+  const host = await client('host'); await host.state();
+  const guest = await client('guest'); await guest.state(m => m.connected.every(Boolean));
+  guest.ws.close(); const stopped = await host.state(m => !m.connected[1] && m.game.state === 'ready');
   assert.deepEqual(stopped.ready, [false, false]);
   const replacement = await client('guest'); const joined = await replacement.state();
   assert.equal(joined.game.state, 'ready');
   host.ws.close(); assert.match((await replacement.wait(m => m.type === 'error')).message, /房主已離開/);
   const newHost = await client('host'); assert.deepEqual((await newHost.state()).connected, [true, false]);
+});
+
+test('disconnect keeps the match paused and notifies the remaining player', async t => {
+  const { playing } = await fixture(t);
+  const { host, guest } = await playing();
+  guest.send({ type: 'input', action: 'drop' });
+  const before = await guest.state(m => m.game.locked[1] === 1);
+  guest.ws.close();
+  const waiting = await host.wait(m => m.type === 'reconnect-waiting');
+  assert.equal(waiting.owner, 1);
+  assert.ok(waiting.deadline > Date.now());
+  const paused = await host.state(m => m.game.state === 'paused' && m.reconnect?.owner === 1);
+  assert.deepEqual(paused.game.board, before.game.board);
+  assert.deepEqual(paused.game.locked, before.game.locked);
+  assert.deepEqual(paused.game.pieces, before.game.pieces);
+  assert.deepEqual(paused.game.queues, before.game.queues);
+  assert.deepEqual(paused.connected, [true, false]);
+  const after = host.messages.length;
+  await new Promise(resolve => setTimeout(resolve, 160));
+  assert.equal(host.messages.slice(after).some(m => m.type === 'state' && m.game.elapsed !== paused.game.elapsed), false);
+});
+
+test('session token reconnect restores the match', async t => {
+  const { playing, client } = await fixture(t);
+  const { host, guest } = await playing();
+  guest.send({ type: 'input', action: 'drop' });
+  const before = await guest.state(m => m.game.locked[1] === 1);
+  const token = guest.messages.find(m => m.type === 'joined').sessionToken;
+  assert.equal(typeof token, 'string');
+  assert.match(token, /^[0-9a-f]{32}$/);
+  guest.ws.close();
+  await host.wait(m => m.type === 'reconnect-waiting');
+  const back = await client();
+  back.send({ type: 'reconnect', sessionToken: token });
+  const joined = await back.wait(m => m.type === 'joined');
+  assert.equal(joined.owner, 1);
+  assert.equal(joined.sessionToken, token);
+  await back.wait(m => m.type === 'reconnected' && m.owner === 1);
+  const restored = await back.state(m => m.game.state === 'playing' && !m.reconnect);
+  assert.deepEqual(restored.game.board, before.game.board);
+  assert.deepEqual(restored.game.locked, before.game.locked);
+  assert.deepEqual(restored.game.pieces, before.game.pieces);
+  const hostResumed = await host.state(m => m.game.state === 'playing' && m.connected.every(Boolean) && !m.reconnect && m.revision > before.revision);
+  assert.deepEqual(hostResumed.game.locked, before.game.locked);
+  back.send({ type: 'input', action: 'drop' });
+  await host.state(m => m.game.locked[1] === 2);
+});
+
+test('reconnect timeout awards the remaining player and returns to the lobby', async t => {
+  const { playing, client } = await fixture(t, { reconnectMs: 200 });
+  const { host, guest } = await playing();
+  guest.ws.close();
+  const timeout = await host.wait(m => m.type === 'reconnect-timeout', 0, 2000);
+  assert.equal(timeout.owner, 1);
+  assert.equal(timeout.winner, 0);
+  const lobby = await host.state(m => m.game.state === 'ready' && !m.connected[1] && !m.reconnect);
+  assert.deepEqual(lobby.connected, [true, false]);
+  const replacement = await client('guest');
+  const joined = await replacement.state();
+  assert.equal(joined.game.state, 'ready');
+  assert.deepEqual(joined.connected, [true, true]);
+});
+
+test('missing or wrong session token cannot claim a reconnecting seat', async t => {
+  const { playing, client } = await fixture(t);
+  const { host, guest } = await playing();
+  const token = guest.messages.find(m => m.type === 'joined').sessionToken;
+  guest.ws.close();
+  await host.wait(m => m.type === 'reconnect-waiting');
+  const noToken = await client('guest');
+  assert.match((await noToken.wait(m => m.type === 'error')).message, /已有人/);
+  const wrong = await client();
+  wrong.send({ type: 'reconnect', sessionToken: 'not-a-valid-token' });
+  assert.match((await wrong.wait(m => m.type === 'error')).message, /憑證/);
+  const empty = await client();
+  empty.send({ type: 'reconnect', sessionToken: '' });
+  assert.match((await empty.wait(m => m.type === 'error')).message, /憑證/);
+  const usurper = await client();
+  usurper.send({ type: 'join', role: 'guest' });
+  assert.match((await usurper.wait(m => m.type === 'error')).message, /已有人/);
+  const back = await client();
+  back.send({ type: 'reconnect', sessionToken: token });
+  assert.equal((await back.wait(m => m.type === 'joined')).owner, 1);
+  await host.state(m => m.game.state === 'playing' && m.connected.every(Boolean));
 });
 
 test('malformed and oversized packets cannot crash the server', async t => {
