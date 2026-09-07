@@ -62,7 +62,7 @@ test('IP entry accepts IP, port, IPv6 and HTTPS while rejecting unsafe URLs', ()
 
 test('server serves the game and rejects unrelated files and cross-origin upgrades', async t => {
   const { port } = await fixture(t);
-  for (const asset of ['/', '/game.js', '/network.js', '/audio.js', '/session-record.js', '/style.css']) assert.equal((await fetch(`http://127.0.0.1:${port}${asset}`)).status, 200);
+  for (const asset of ['/', '/game.js', '/game-core.js', '/ai.js', '/network.js', '/audio.js', '/session-record.js', '/style.css']) assert.equal((await fetch(`http://127.0.0.1:${port}${asset}`)).status, 200);
   const health = await fetch(`http://127.0.0.1:${port}/healthz`);
   assert.equal(health.status, 200);
   const body = await health.json();

@@ -6,6 +6,7 @@
   let lastTime=0, previousState='', previousQueues='', previousLocks=0;
   let previousBoardKey='', previousClock='', previousHud='';
   let softSent=false, softAt=0, wasNetwork=false, heardOver=false;
+  let playMode='local', ai=null;
   const network=new FlipNetwork.Connection(networkChanged, snapshot=>{
     FlipNetwork.applyGame(game,snapshot);
     previousBoardKey=''; previousState='';
@@ -17,10 +18,10 @@
     return network.reconnect?Math.max(0,Math.ceil((network.reconnect.deadline-Date.now())/1000)):-1;
   }
   function networkChanged() {
-    if(wasNetwork&&!network.active) {clearInput();game.state='ready';}
+    if(wasNetwork&&!network.active) {stopAI();playMode=selectedMode();clearInput();game.state='ready';}
     wasNetwork=network.active;
     const joined=network.owner!==null, both=network.connected.every(Boolean);
-    $('mode-label').textContent=network.active?'區域網路對戰':'同機雙人對戰';
+    $('mode-label').textContent=network.active?'區域網路對戰':(playMode==='ai'?'單人對戰 AI':'同機雙人對戰');
     $('host').disabled=network.active;$('join').disabled=network.active;
     $('join-ip').disabled=network.active;$('server-address').disabled=network.active;
     $('leave').hidden=!network.active;$('ready').hidden=!joined||game.state!=='ready'||network.reconnect||network.pendingReconnect;
@@ -35,10 +36,12 @@
       panel.classList.toggle('remote',joined&&owner!==network.owner);
       panel.classList.toggle('self',joined&&owner===network.owner);
     }
+    syncModeUi();
     refreshRecord();
     render();
   }
   function connect(role) {
+    stopAI();playMode='local';
     clearInput();game.state='ready';
     $('network-panel').open=true;
     if(!['http:','https:'].includes(location.protocol)) {
@@ -59,7 +62,6 @@
     } catch(error) {network.message=error.message;networkChanged();}
   });
   if(['http:','https:'].includes(location.protocol)) $('server-address').value=location.origin;
-  function owns(owner) {return !network.active||network.owner===owner;}
   function sendSoft(down) {
     if(!network.active) return;
     const now=performance.now();
@@ -74,7 +76,7 @@
   const colorName=color=>color===1?'黑方 ↓':'白方 ↑';
   function refreshRecord() {
     if(!globalThis.FlipRecord) return;
-    $('session-record').textContent=FlipRecord.format(FlipRecord.load(),network.active,network.owner);
+    $('session-record').textContent=FlipRecord.format(FlipRecord.load(),network.active,network.owner,playMode==='ai'&&!network.active);
   }
   function syncMute() {
     if(!globalThis.FlipAudio) return;
@@ -90,22 +92,44 @@
     }
     if(game.state==='over'&&!heardOver&&game.winner!==null) {
       heardOver=true;
-      const mine=network.active?network.owner:null;
+      const mine=network.active?network.owner:(playMode==='ai'?0:null);
       FlipAudio?.play(mine===null||mine===game.winner?'win':'lose');
-      FlipRecord?.recordOutcome(game.winner,mine);
+      FlipRecord?.recordOutcome(game.winner,mine,undefined,playMode==='ai'&&!network.active);
       refreshRecord();
     }
     if(game.state!=='over') heardOver=false;
     void counts;
   }
   function clearInput() {held.clear();pointerHolds.clear();sendSoft(false);}
+  function selectedMode() {return document.querySelector('input[name="mode"]:checked')?.value||'local';}
+  function selectedDifficulty() {return document.querySelector('input[name="difficulty"]:checked')?.value||'normal';}
+  function stopAI() {if(ai){ai.stop();ai=null;}}
+  function syncModeUi() {
+    const aiOn=(playMode==='ai'||selectedMode()==='ai')&&!network.active;
+    $('difficulty-picker').hidden=!aiOn||game.state!=='ready';
+    document.querySelector('.player-two .player-tag').textContent=aiOn?'CPU AI':'PLAYER 02';
+    document.querySelector('.player-two').classList.toggle('remote',aiOn||(network.active&&network.owner!==1));
+    const heading=$('p2-heading');
+    if(heading) heading.childNodes[0].textContent=aiOn?'電腦 AI ':'玩家二 ';
+    const guide=document.querySelector('.player-two .control-guide');
+    if(guide) guide.querySelector('h3').textContent=aiOn?'電腦對手':'操作方式';
+    if(!network.active) $('mode-label').textContent=aiOn?'單人對戰 AI':'同機雙人對戰';
+  }
   function reset(ready=false) {
     if(network.active) {network.send({type:ready?'restart':'start'});return;}
+    playMode=selectedMode();
+    stopAI();
     clearInput();
     game.reset(Number(document.querySelector('input[name="color"]:checked').value));
     if(ready) game.state='ready';
-    previousLocks=0;previousQueues='';render();
+    else if(playMode==='ai'&&globalThis.FlipAI) ai=new FlipAI.Controller(game,1,selectedDifficulty());
+    previousLocks=0;previousQueues='';syncModeUi();render();
     if(!ready) board.focus({preventScroll:true});
+  }
+  function owns(owner) {
+    if(network.active) return network.owner===owner;
+    if(playMode==='ai') return owner===0;
+    return true;
   }
   function action(owner,type) {
     if(game.state!=='playing'||!owns(owner)) return;
@@ -173,12 +197,15 @@
       cueMatch(counts);previousLocks=locked;
     }
     if(game.state==='over') cueMatch(counts);
-    const stateKey=JSON.stringify([game.state,network.active,network.owner,network.connected,network.ready,game.sides[0].color,remainSecs(),network.pendingReconnect,network.message]);
+    const stateKey=JSON.stringify([game.state,network.active,network.owner,network.connected,network.ready,game.sides[0].color,remainSecs(),network.pendingReconnect,network.message,playMode,selectedDifficulty()]);
     if(stateKey===previousState) return;
     previousState=stateKey;
     const ready=game.state==='ready', paused=game.state==='paused', over=game.state==='over';
     const waiting=Boolean(network.reconnect), restoring=Boolean(network.pendingReconnect);
-    $('overlay').hidden=game.state==='playing'&&!waiting&&!restoring;$('color-picker').hidden=!ready||waiting||restoring;
+    $('overlay').hidden=game.state==='playing'&&!waiting&&!restoring;
+    $('color-picker').hidden=!ready||waiting||restoring;
+    $('mode-picker').hidden=!ready||waiting||restoring||network.active;
+    $('difficulty-picker').hidden=!ready||waiting||restoring||network.active||selectedMode()!=='ai';
     $('pause').disabled=ready||over||waiting||restoring;$('restart').disabled=ready||waiting||restoring||(network.active&&network.owner!==0);
     $('start').disabled=false;
     document.querySelectorAll('input[name="color"]').forEach(input=>{
@@ -199,9 +226,10 @@
       $('match-status').textContent=restoring?'正在重新連線':`等待重連 ${secs}s`;
       clearInput();
     } else if(ready) {
-      $('overlay-kicker').textContent='READY TO FLIP?';$('overlay-title').textContent='準備好翻轉戰局？';
-      $('overlay-description').innerHTML='兩位玩家，共用一個棋盤。<br>用方塊搶下你的領地。';
-      $('start').innerHTML='開始對戰 <span>↗</span>';$('overlay-note').textContent=($('session-record')?.textContent)||'請兩位玩家就位';
+      $('overlay-kicker').textContent='READY TO FLIP?';$('overlay-title').textContent=playMode==='ai'?'單人對戰 AI':'準備好翻轉戰局？';
+      $('overlay-description').innerHTML=playMode==='ai'?'你操作玩家一（方向鍵 + Enter）。<br>AI 操作玩家二。':'兩位玩家，共用一個棋盤。<br>用方塊搶下你的領地。';
+      $('start').innerHTML=playMode==='ai'?'開始對戰 AI <span>↗</span>':'開始對戰 <span>↗</span>';
+      $('overlay-note').textContent=($('session-record')?.textContent)||(playMode==='ai'?'選好難度與顏色後開始':'請兩位玩家就位');
       $('match-status').textContent='等待開始';refreshRecord();
     } else if(paused) {
       $('overlay-kicker').textContent='TAKE A BREATHER';$('overlay-title').textContent='對戰已暫停';
@@ -210,10 +238,12 @@
       $('match-status').textContent='已暫停';clearInput();$('start').focus({preventScroll:true});
     } else if(over) {
       const winner=game.winner,score=pct(counts[game.sides[winner].color-1]);
-      $('overlay-kicker').textContent='TERRITORY CLAIMED';$('overlay-title').textContent=`玩家${winner===0?'一':'二'}獲勝！`;
+      $('overlay-kicker').textContent='TERRITORY CLAIMED';
+      $('overlay-title').textContent=playMode==='ai'?(winner===0?'你獲勝！':'AI 獲勝！'):`玩家${winner===0?'一':'二'}獲勝！`;
       $('overlay-description').textContent=`${colorName(game.sides[winner].color).slice(0,2)}佔領 ${score}% 領地・用時 ${$('clock').textContent}`;
       $('start').innerHTML='再戰一局 <span>↗</span>';$('overlay-note').textContent='或按「新對局」重新選色';
-      $('match-status').textContent=`玩家${winner===0?'一':'二'}獲勝！`;clearInput();$('start').focus({preventScroll:true});
+      $('match-status').textContent=playMode==='ai'?(winner===0?'你獲勝！':'AI 獲勝！'):`玩家${winner===0?'一':'二'}獲勝！`;
+      clearInput();$('start').focus({preventScroll:true});
     } else {clearInput();$('match-status').textContent='對戰進行中';if(!document.hidden) board.focus({preventScroll:true});}
     if(network.active&&!waiting&&!restoring) {
       $('ready').hidden=network.owner===null||!ready;
@@ -236,11 +266,19 @@
   $('pause').addEventListener('click',togglePause);
   $('restart').addEventListener('click',()=>{reset(true);$('start').focus({preventScroll:true});});
   document.querySelectorAll('input[name="color"]').forEach(input=>input.addEventListener('change',()=>network.active?network.send({type:'color',color:Number(input.value)}):reset(true)));
+  document.querySelectorAll('input[name="mode"]').forEach(input=>input.addEventListener('change',()=>{
+    if(game.state!=='ready'||network.active) {syncModeUi();return;}
+    playMode=selectedMode();stopAI();syncModeUi();refreshRecord();previousState='';render();
+  }));
+  document.querySelectorAll('input[name="difficulty"]').forEach(input=>input.addEventListener('change',()=>{
+    FlipAI?.saveDifficulty(selectedDifficulty());previousState='';render();
+  }));
   const keys={ArrowLeft:[0,'left'],ArrowRight:[0,'right'],ArrowUp:[0,'rotate'],ArrowDown:[0,'soft'],Enter:[0,'drop'],KeyA:[1,'left'],KeyD:[1,'right'],KeyW:[1,'rotate'],KeyS:[1,'soft'],Space:[1,'drop']};
   document.addEventListener('keydown',event=>{
     if(event.code==='Escape') {if(!event.repeat) togglePause();return;}
     const binding=keys[event.code];
     if(!binding||game.state!=='playing'||event.ctrlKey||event.metaKey||event.altKey) return;
+    if(playMode==='ai'&&!network.active&&binding[0]===1) return;
     // Keep ordinary keyboard activation for focused UI buttons.
     if(event.target.closest('button,input,a')) return;
     event.preventDefault();
@@ -279,7 +317,14 @@
       if(hold.type==='soft') fast[hold.owner]=true;
       if(['left','right'].includes(hold.type)&&hold.age>.22&&hold.repeat>=.09) {hold.repeat=0;action(hold.owner,hold.type);}
     }
-    if(game.state==='playing') {if(network.active) sendSoft(fast.some(Boolean));else {game.tick(dt,fast);render();}}
+    if(game.state==='playing') {
+      if(network.active) sendSoft(fast.some(Boolean));
+      else {
+        if(ai) ai.tick(dt);
+        if(game.state==='playing') game.tick(dt,playMode==='ai'?[fast[0],false]:fast);
+        render();
+      }
+    }
     requestAnimationFrame(frame);
   }
   // Optional agent controls use the same actions as the visible game.
@@ -299,7 +344,12 @@
   window.addEventListener('pagehide',()=>network.disconnect());
   $('mute').addEventListener('click',()=>{FlipAudio?.setMuted(!FlipAudio.isMuted());syncMute();});
   document.addEventListener('pointerdown',()=>FlipAudio?.unlock(),{once:true});
-  syncMute();refreshRecord();
+  const savedDiff=FlipAI?.loadDifficulty();
+  if(savedDiff) {
+    const radio=document.querySelector(`input[name="difficulty"][value="${savedDiff}"]`);
+    if(radio) radio.checked=true;
+  }
+  syncMute();syncModeUi();refreshRecord();
   render();requestAnimationFrame(frame);
   const joining=new URLSearchParams(location.search).get('join')==='1';
   if(!(['http:','https:'].includes(location.protocol)&&network.resumeSession())&&joining) connect('guest');

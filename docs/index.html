@@ -4,11 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
   <meta name="theme-color" content="#101413">
-  <meta name="description" content="翻轉方塊 Flip Blocks：同機雙人方塊對戰。推進、包圍、翻轉，率先佔領 70% 棋盤。">
+  <meta name="description" content="翻轉方塊 Flip Blocks：同機雙人、單人對戰 AI 與連線對戰。推進、包圍、翻轉，率先佔領 70% 棋盤。">
   <title>翻轉方塊 · Flip Blocks</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./style.css">
   <script src="./game-core.js" defer></script>
+  <script src="./ai.js" defer></script>
   <script src="./network.js" defer></script>
   <script src="./audio.js" defer></script>
   <script src="./session-record.js" defer></script>
@@ -50,6 +51,8 @@
           <div id="board" tabindex="-1" role="img" aria-label="10 欄 20 列棋盤，黑白各佔一半"></div>
           <div id="overlay" class="overlay"><div class="overlay-card">
             <div class="small-mark" aria-hidden="true">◧</div><p id="overlay-kicker" class="eyebrow">READY TO FLIP?</p><h2 id="overlay-title">準備好翻轉戰局？</h2><p id="overlay-description">兩位玩家，共用一個棋盤。<br>用方塊搶下你的領地。</p>
+            <fieldset id="mode-picker"><legend>對戰模式</legend><label><input type="radio" name="mode" value="local" checked><span>同機雙人</span></label><label><input type="radio" name="mode" value="ai"><span>單人對戰 AI</span></label></fieldset>
+            <fieldset id="difficulty-picker" hidden><legend>AI 難度</legend><label><input type="radio" name="difficulty" value="easy"><span>簡單</span></label><label><input type="radio" name="difficulty" value="normal" checked><span>普通</span></label><label><input type="radio" name="difficulty" value="hard"><span>困難</span></label></fieldset>
             <fieldset id="color-picker"><legend>玩家一選擇顏色</legend><label><input type="radio" name="color" value="1" checked><span>● 黑方 ↓</span></label><label><input type="radio" name="color" value="2"><span>○ 白方 ↑</span></label></fieldset>
             <button id="start" class="primary">開始對戰 <span>↗</span></button><p class="overlay-note" id="overlay-note">請兩位玩家就位</p>
           </div></div>

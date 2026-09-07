@@ -34,7 +34,7 @@ git push origin main
 
 ## 本機預覽與驗證
 
-直接用瀏覽器開啟 `docs/index.html`，或在根目錄啟動本機伺服器：
+直接用瀏覽器開啟 `docs/index.html` 即可玩同機雙人或單人對戰 AI，或在根目錄啟動本機伺服器：
 
 ```sh
 python3 -m http.server 4173 --bind 127.0.0.1 --directory docs

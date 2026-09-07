@@ -1,10 +1,10 @@
 # Flip Blocks / 翻轉方塊
 
-雙人方塊對戰遊戲，網頁版支援同機及區域網路 / IP 連線對戰，包含可直接在瀏覽器遊玩的網頁版，以及移植自 Codea/Lua 原型的 Unity 版。
+雙人方塊對戰遊戲，網頁版支援同機雙人、單人對戰 AI，以及區域網路 / IP 連線對戰，包含可直接在瀏覽器遊玩的網頁版，以及移植自 Codea/Lua 原型的 Unity 版。
 
 ## 網頁版（GitHub Pages）
 
-用瀏覽器開啟 **`docs/index.html`** 即可遊玩，不需安裝 Unity 或其他套件。支援鍵盤、觸控按鈕、選色、下個方塊預覽、落點提示、暫停與再戰；切換分頁或視窗會自動暫停。
+用瀏覽器開啟 **`docs/index.html`** 即可遊玩，不需安裝 Unity 或其他套件。主選單可選**同機雙人**或**單人對戰 AI**（簡單／普通／困難，上次難度會記住）；玩家一使用方向鍵 + Enter，AI 操作玩家二。支援鍵盤、觸控按鈕、選色、下個方塊預覽、落點提示、音效、暫停與再戰；切換分頁或視窗會自動暫停（AI 也會停）。
 
 發佈方式：將變更推送到 GitHub，然後到儲存庫 **Settings → Pages**，選 **Deploy from a branch → main → /docs → Save**。
 
@@ -48,6 +48,7 @@ npm start
 │   ├── style.css          # 響應式遊戲介面
 │   ├── game-core.js       # 獨立遊戲規則
 │   ├── game.js            # 畫面、鍵盤與觸控
+│   ├── ai.js              # 單人模式 AI
 │   ├── network.js         # 連線及 IP 加入
 │   ├── audio.js           # Web Audio 音效
 │   ├── session-record.js  # 本場戰績
@@ -62,6 +63,7 @@ npm start
 ├── pnpm-lock.yaml         # 套件版本及完整性鎖定
 └── tests/
     ├── game-core.test.cjs
+    ├── ai.test.cjs
     ├── network.test.cjs
     └── session-record.test.cjs
 ```

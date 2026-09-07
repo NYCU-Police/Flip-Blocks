@@ -23,7 +23,7 @@ function createServer({ heartbeatMs = 5000, reconnectMs = RECONNECT_MS } = {}) {
   const assets = new Map([
     ['/', ['index.html', 'text/html']], ['/index.html', ['index.html', 'text/html']],
     ['/game.js', ['game.js', 'text/javascript']], ['/game-core.js', ['game-core.js', 'text/javascript']],
-    ['/network.js', ['network.js', 'text/javascript']], ['/audio.js', ['audio.js', 'text/javascript']],
+    ['/network.js', ['network.js', 'text/javascript']], ['/ai.js', ['ai.js', 'text/javascript']], ['/audio.js', ['audio.js', 'text/javascript']],
     ['/session-record.js', ['session-record.js', 'text/javascript']], ['/style.css', ['style.css', 'text/css']],
     ['/favicon.svg', ['favicon.svg', 'image/svg+xml']]
   ]);
