@@ -43,6 +43,24 @@
     $('mode-home').hidden=play;
     $('play-stage').hidden=!play;
     $('back-modes').hidden=!play;
+    layoutPlayfield();
+  }
+  function layoutPlayfield() {
+    const arena=document.querySelector('.arena');
+    if(!arena) return;
+    if(window.matchMedia('(max-width: 768px)').matches) {
+      arena.style.removeProperty('--board-w');
+      return;
+    }
+    const styles=getComputedStyle(arena);
+    const side=parseFloat(styles.getPropertyValue('--side'))||184;
+    const gap=parseFloat(styles.getPropertyValue('--gap'))||16;
+    const chrome=document.body.classList.contains('match-playing')?160:200;
+    const cap=520, arenaMax=1120;
+    const byHeight=(window.innerHeight-chrome)/2;
+    const byWidth=Math.min(arenaMax,window.innerWidth-48)-side*2-gap*2;
+    const width=Math.round(Math.min(cap,Math.max(180,Math.min(byHeight,byWidth))));
+    arena.style.setProperty('--board-w',width+'px');
   }
   function enterMode(mode) {
     onlineMode=mode==='online';
@@ -60,6 +78,7 @@
     syncModeUi();
     refreshRecord();
     render();
+    layoutPlayfield();
     if(onlineMode&&!network.active) $('nickname').focus();
   }
   function exitMode() {
@@ -325,6 +344,7 @@
   }
   function render() {
     document.body.classList.toggle('match-playing',game.state==='playing'&&!$('play-stage').hidden);
+    layoutPlayfield();
     if(game.state==='playing'&&!wasPlaying) maybeShowGestureCoach();
     wasPlaying=game.state==='playing';
     const counts=game.counts(), classes=new Map();
@@ -625,6 +645,9 @@
     } catch {}
   }
   $('leaderboard-panel').addEventListener('toggle',()=>{if($('leaderboard-panel').open) refreshLeaderboard();});
+  window.addEventListener('resize',layoutPlayfield);
+  window.matchMedia('(max-width: 768px)').addEventListener('change',layoutPlayfield);
+  layoutPlayfield();
   syncMute();syncModeUi();refreshRecord();
   render();requestAnimationFrame(frame);
   const params=new URLSearchParams(location.search);

@@ -84,10 +84,10 @@ body.match-playing #board,body.match-playing .board-frame{touch-action:none;user
   .online-panel{padding:16px 12px 12px}
 }
 /* Board-first play layout. Mode-home styles stay above. */
-body.stage-play main{max-width:1280px;padding:16px 20px 0}
+body.stage-play main{max-width:1200px;padding:16px 20px 0}
 body.stage-play .match-title{display:none}
 body.stage-play .match-heading{margin-bottom:12px}
-.arena{display:grid;grid-template-columns:minmax(160px,200px) minmax(300px,1fr) minmax(160px,200px);grid-template-areas:"p1 board p2" ". pads .";gap:20px 24px;align-items:start;justify-content:center}
+.arena{--side:184px;--gap:16px;display:grid;grid-template-columns:minmax(160px,200px) minmax(300px,1fr) minmax(160px,200px);grid-template-areas:"p1 board p2" ". pads .";gap:20px 24px;align-items:start;justify-content:center}
 .player-one{grid-area:p1}
 .player-two{grid-area:p2}
 .board-section{grid-area:board;width:min(510px,calc((100svh - 160px)/2));max-width:100%;justify-self:center}
@@ -112,9 +112,22 @@ body.stage-play .rules{margin-top:28px}
 @media(min-width:769px){
   .touch-dock{display:none!important}
   body.stage-play .topbar{height:64px}
+  body.stage-play main{max-width:1200px;margin-left:auto;margin-right:auto}
+  body.stage-play .arena{width:min(1120px,100%);margin-inline:auto;grid-template-columns:var(--side) var(--board-w,min(36vw,calc((100svh - 200px)/2))) var(--side);gap:12px var(--gap);justify-content:center;align-items:stretch;justify-items:stretch}
+  body.stage-play .board-section{width:var(--board-w,min(36vw,calc((100svh - 200px)/2)));max-width:100%;justify-self:stretch;align-self:stretch;display:flex;flex-direction:column}
+  body.stage-play .board-slot{flex:1 1 auto;min-height:0}
+  body.stage-play .player{display:flex;flex-direction:column;align-self:stretch;height:auto;padding:18px 16px}
+  body.stage-play .player h2{margin:0 0 8px}
+  body.stage-play .player .score{margin:0 0 10px}
+  body.stage-play .player .score strong{font-size:36px}
+  body.stage-play .mini-meter{width:100%;flex:0 0 auto}
+  body.stage-play .next-panel{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;border-top:0;border-bottom:0;padding:12px 0 0}
+  body.stage-play .previews{width:100%}
   body.match-playing .board-label{display:none}
-  body.match-playing .board-section{width:min(480px,calc((100svh - 200px)/2))}
   body.match-playing .controls-help{display:none}
+}
+@media(min-width:769px) and (max-width:1100px){
+  body.stage-play .arena{--side:168px;--gap:12px}
 }
 @media(max-width:768px){
   .topbar{height:52px;padding:0 14px}
