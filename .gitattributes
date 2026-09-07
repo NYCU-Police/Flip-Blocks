@@ -1,0 +1,22 @@
+* text=auto
+
+# Consistent line endings for source code, documentation and Unity YAML.
+*.cs text eol=lf
+*.shader text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.meta text eol=lf
+*.unity text eol=lf
+*.prefab text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Preserve binary assets byte-for-byte.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.dll binary
