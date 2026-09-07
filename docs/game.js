@@ -272,8 +272,8 @@
     const p2=aiOn?'電腦 AI':(network.active&&network.names?.[1]?network.names[1]:'玩家二');
     $('p1-name').textContent=p1;
     $('p2-name').textContent=p2;
-    const guide=document.querySelector('.player-two .control-guide');
-    if(guide) guide.querySelector('h3').textContent=aiOn?'電腦對手':'操作方式';
+    const guide=$('p2-guide');
+    if(guide) guide.querySelector('h3').textContent=aiOn?'電腦對手':'玩家二';
     if(!network.active) $('mode-label').textContent=onlineMode?'線上對戰':(aiOn?'單人對戰 AI':'同機雙人對戰');
     if($('play-stage').hidden) $('mode-label').textContent='選擇模式';
   }
@@ -486,7 +486,7 @@
     button.addEventListener('click',event=>{if(event.detail===0) {const owner=Number(button.dataset.owner);action(owner,button.dataset.action==='soft'?'step':button.dataset.action);render();}});
   });
   const GESTURE_KEY='flip-blocks-seen-gestures';
-  function isPhoneWidth() {return window.matchMedia('(max-width: 650px)').matches;}
+  function isPhoneWidth() {return window.matchMedia('(max-width: 768px)').matches;}
   function gestureOwner() {
     if(network.spectating) return null;
     if(network.active) return network.owner;

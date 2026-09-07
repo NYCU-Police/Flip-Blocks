@@ -96,19 +96,18 @@
       </section>
       <p id="session-record" class="session-record">本機戰績 玩家一 0 勝 · 玩家二 0 勝</p>
       <div class="arena">
-        <section class="player player-one" aria-labelledby="p1-heading">
-          <div class="player-top"><span class="player-tag">PLAYER 01</span><span class="player-dot"></span></div>
-          <h2 id="p1-heading"><span id="p1-name">玩家一</span> <span id="p1-color">黑方 ↓</span></h2>
-          <div class="score"><strong id="p1-score">50</strong><span>% 佔領</span></div>
-          <div class="mini-meter"><i id="p1-meter"></i><span></span></div>
+        <section class="player player-two" aria-labelledby="p2-heading">
+          <div class="player-top"><span class="player-tag">PLAYER 02</span><span class="player-dot"></span></div>
+          <h2 id="p2-heading"><span id="p2-name">玩家二</span> <span id="p2-color">白方 ↑</span></h2>
+          <div class="score"><strong id="p2-score">50</strong><span>% 佔領</span></div>
+          <div class="mini-meter"><i id="p2-meter"></i><span></span></div>
           <p class="target">勝利目標 <b>70%</b></p>
-          <div class="next-panel"><h3>接下來 <span>NEXT</span></h3><div class="previews" id="p1-next"></div></div>
-          <div class="control-guide" id="p1-guide"><h3>操作方式</h3><div id="p1-binds"><p><span>左右移動</span><span><kbd>←</kbd> <kbd>→</kbd></span></p><p><span>旋轉 / 加速</span><span><kbd>↑</kbd> <kbd>↓</kbd></span></p><p><span>直接落定</span><kbd>Enter</kbd></p></div></div>
-          <div class="touch-controls" aria-label="玩家一觸控操作"><button data-owner="0" data-action="left" aria-label="玩家一向左">←</button><button data-owner="0" data-action="rotate" aria-label="玩家一旋轉">↻</button><button data-owner="0" data-action="right" aria-label="玩家一向右">→</button><button data-owner="0" data-action="soft" aria-label="玩家一加速">加速</button><button class="drop" data-owner="0" data-action="drop">落定 ↓</button></div>
-          <p class="piece-count">已落定 <b id="p1-locked">0</b> 塊</p>
+          <div class="next-panel"><h3>接下來 <span>NEXT</span></h3><div class="previews" id="p2-next"></div></div>
+          <p class="piece-count">已落定 <b id="p2-locked">0</b> 塊</p>
         </section>
         <section class="board-section" aria-label="對戰棋盤">
           <div class="board-label"><span>白方基地</span><span>10 × 20</span></div>
+          <div class="board-slot">
           <div class="board-frame">
             <div id="board" tabindex="-1" role="img" aria-label="10 欄 20 列棋盤，黑白各佔一半"></div>
             <div id="overlay" class="overlay"><div class="overlay-card">
@@ -120,21 +119,31 @@
               <button id="start" class="primary">開始對戰 <span>↗</span></button><p class="overlay-note" id="overlay-note">請兩位玩家就位</p>
             </div></div>
           </div>
+          </div>
           <div class="board-label bottom-label"><span>黑方基地</span><span id="match-status" role="status">等待開始</span></div>
           <div class="territory" aria-label="雙方佔領比例"><i id="territory-black"></i><i id="territory-white"></i><span class="threshold t30"></span><span class="threshold t70"></span></div>
         </section>
-        <section class="player player-two" aria-labelledby="p2-heading">
-          <div class="player-top"><span class="player-tag">PLAYER 02</span><span class="player-dot"></span></div>
-          <h2 id="p2-heading"><span id="p2-name">玩家二</span> <span id="p2-color">白方 ↑</span></h2>
-          <div class="score"><strong id="p2-score">50</strong><span>% 佔領</span></div>
-          <div class="mini-meter"><i id="p2-meter"></i><span></span></div>
+        <section class="player player-one" aria-labelledby="p1-heading">
+          <div class="player-top"><span class="player-tag">PLAYER 01</span><span class="player-dot"></span></div>
+          <h2 id="p1-heading"><span id="p1-name">玩家一</span> <span id="p1-color">黑方 ↓</span></h2>
+          <div class="score"><strong id="p1-score">50</strong><span>% 佔領</span></div>
+          <div class="mini-meter"><i id="p1-meter"></i><span></span></div>
           <p class="target">勝利目標 <b>70%</b></p>
-          <div class="next-panel"><h3>接下來 <span>NEXT</span></h3><div class="previews" id="p2-next"></div></div>
-          <div class="control-guide"><h3>操作方式</h3><p><span>左右移動</span><span><kbd>A</kbd> <kbd>D</kbd></span></p><p><span>旋轉 / 加速</span><span><kbd>W</kbd> <kbd>S</kbd></span></p><p><span>直接落定</span><kbd>Space</kbd></p></div>
-          <div class="touch-controls" aria-label="玩家二觸控操作"><button data-owner="1" data-action="left" aria-label="玩家二向左">←</button><button data-owner="1" data-action="rotate" aria-label="玩家二旋轉">↻</button><button data-owner="1" data-action="right" aria-label="玩家二向右">→</button><button data-owner="1" data-action="soft" aria-label="玩家二加速">加速</button><button class="drop" data-owner="1" data-action="drop">落定 ↑</button></div>
-          <p class="piece-count">已落定 <b id="p2-locked">0</b> 塊</p>
+          <div class="next-panel"><h3>接下來 <span>NEXT</span></h3><div class="previews" id="p1-next"></div></div>
+          <p class="piece-count">已落定 <b id="p1-locked">0</b> 塊</p>
         </section>
+        <div class="touch-dock">
+          <div class="touch-controls" aria-label="玩家二觸控操作"><button data-owner="1" data-action="left" aria-label="玩家二向左">←</button><button data-owner="1" data-action="rotate" aria-label="玩家二旋轉">↻</button><button data-owner="1" data-action="right" aria-label="玩家二向右">→</button><button data-owner="1" data-action="soft" aria-label="玩家二加速">加速</button><button class="drop" data-owner="1" data-action="drop">落定 ↑</button></div>
+          <div class="touch-controls" aria-label="玩家一觸控操作"><button data-owner="0" data-action="left" aria-label="玩家一向左">←</button><button data-owner="0" data-action="rotate" aria-label="玩家一旋轉">↻</button><button data-owner="0" data-action="right" aria-label="玩家一向右">→</button><button data-owner="0" data-action="soft" aria-label="玩家一加速">加速</button><button class="drop" data-owner="0" data-action="drop">落定 ↓</button></div>
+        </div>
       </div>
+      <details class="controls-help" id="controls-help">
+        <summary>操作說明</summary>
+        <div class="control-guides">
+          <div class="control-guide" id="p1-guide"><h3>玩家一</h3><div id="p1-binds"><p><span>左右移動</span><span><kbd>←</kbd> <kbd>→</kbd></span></p><p><span>旋轉 / 加速</span><span><kbd>↑</kbd> <kbd>↓</kbd></span></p><p><span>直接落定</span><kbd>Enter</kbd></p></div></div>
+          <div class="control-guide" id="p2-guide"><h3>操作方式</h3><p><span>左右移動</span><span><kbd>A</kbd> <kbd>D</kbd></span></p><p><span>旋轉 / 加速</span><span><kbd>W</kbd> <kbd>S</kbd></span></p><p><span>直接落定</span><kbd>Space</kbd></p></div>
+        </div>
+      </details>
       <div id="gesture-coach" class="gesture-coach" hidden>
         <div class="gesture-coach-card">
           <p class="gesture-coach-title">手機手勢</p>
