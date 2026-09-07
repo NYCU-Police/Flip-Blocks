@@ -73,5 +73,3 @@
 - `Library/`、`Temp/`、`Logs/`、`UserSettings/` 等自動產生的內容。
 
 所有原始截圖集中於 `docs/screenshots/`。其中 `flip-blocks-local-2p.png` 為本機雙人版本截圖，其餘保留作為開發過程紀錄。
-
-上傳步驟請見 [GitHub 上傳說明](docs/github-upload.md)。
