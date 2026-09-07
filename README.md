@@ -137,7 +137,6 @@ macOS 建置入口為 `FlipBlocksUnity/Assets/Editor/BuildFlipBlocks.cs` 的 `Bu
 
 ## 致謝
 
-- **原作者** [yuxzs](https://github.com/yuxzs)：Codea/Lua 原型與 Unity 版起點。本專案 fork 自 [yuxzs/Flip-Blocks](https://github.com/yuxzs/Flip-Blocks)。
-- **後續開發** [NYCU-Police](https://github.com/NYCU-Police)：網頁版、單人 AI、多房間線上對戰、排行榜與部署流程。
+本專案基於 [yuxzs](https://github.com/yuxzs) 的原作 Flip-Blocks（Codea/Lua 原型與 Unity 版）。
 
-感謝原作把規則與雙人節奏做完整，我們才有機會在瀏覽器上繼續擴充。
+由 [Lu-An Chen](https://github.com/luancs11) @ [NYCU-Police](https://github.com/NYCU-Police/Flip-Blocks) 接續開發及部署（網頁版、連線對戰、AI、排行榜、CI/CD）。

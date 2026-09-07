@@ -6,6 +6,12 @@ html{touch-action:manipulation}*{box-sizing:border-box}body{margin:0;background:
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important;scroll-behavior:auto!important}}
 [hidden]{display:none!important}
 .mode b{font-weight:400}
+.site-credit{max-width:1190px;margin:40px auto 0;padding:20px 24px 32px;border-top:1px solid var(--line);display:block;text-align:center;font-size:12px;font-weight:400;letter-spacing:0;line-height:1.8;color:var(--muted)}
+.site-credit span{font-weight:400;color:inherit;letter-spacing:0}
+.site-credit a{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
+.site-credit a:hover{color:var(--text)}
+.site-credit a:focus-visible{outline:2px solid var(--mint);outline-offset:3px}
+@media(max-width:650px){.site-credit{margin-left:16px;margin-right:16px;padding:18px 8px 28px}}
 .stage-pick .match-title{display:none}
 .stage-pick .match-heading{justify-content:flex-end}
 .mode-home{margin:8px 0 36px}
