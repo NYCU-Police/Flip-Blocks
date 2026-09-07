@@ -1,6 +1,16 @@
 # Flip Blocks / 翻轉方塊
 
-以 Unity 製作的本機雙人方塊對戰遊戲，移植自 Codea/Lua 的 Flip Blocks 原型。
+本機雙人方塊對戰遊戲，包含可直接在瀏覽器遊玩的網頁版，以及移植自 Codea/Lua 原型的 Unity 版。
+
+## 網頁版（GitHub Pages）
+
+用瀏覽器開啟 **`docs/index.html`** 即可遊玩，不需安裝 Unity 或其他套件。支援鍵盤、觸控按鈕、選色、下個方塊預覽、落點提示、暫停與再戰；切換分頁或視窗會自動暫停。
+
+發佈方式：將變更推送到 GitHub，然後到儲存庫 **Settings → Pages**，選 **Deploy from a branch → main → /docs → Save**。
+
+完成 Pages 設定後的遊戲網址：[yuxzs.github.io/Flip-Blocks](https://yuxzs.github.io/Flip-Blocks/)。
+
+完整步驟與網頁版規則請見 [GitHub Pages 發佈說明](docs/github-pages.md)。
 
 ![本機雙人遊戲畫面](docs/screenshots/flip-blocks-local-2p.png)
 
@@ -16,12 +26,19 @@
 │   ├── Packages/           # 套件清單與版本鎖定檔
 │   ├── ProjectSettings/    # Unity 專案設定
 │   └── README.md
-└── docs/
-    ├── github-upload.md
-    └── screenshots/       # 現行版本與開發過程截圖
+├── docs/
+│   ├── index.html         # 網頁遊戲入口 / GitHub Pages
+│   ├── style.css          # 響應式遊戲介面
+│   ├── game-core.js       # 獨立遊戲規則
+│   ├── game.js            # 畫面、鍵盤與觸控
+│   ├── github-pages.md    # 網頁版發佈說明
+│   ├── github-upload.md
+│   └── screenshots/      # 現行版本與開發過程截圖
+└── tests/
+    └── game-core.test.cjs # node --test tests/game-core.test.cjs
 ```
 
-## 開啟與遊玩
+## Unity 版：開啟與遊玩
 
 1. 使用 Unity Hub 安裝 Unity **6000.4.10f1**，版本以 `FlipBlocksUnity/ProjectSettings/ProjectVersion.txt` 為準。
 2. 在 Unity Hub 加入本儲存庫內的 **`FlipBlocksUnity` 子資料夾**。
