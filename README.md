@@ -23,13 +23,13 @@ npm install
 npm start
 ```
 
-1. 房主開啟 [本機連線主機](http://localhost:8787)，展開「區域網路 / IP 連線對戰」，按「建立房間」。
-2. 另一位玩家連上同一 Wi-Fi / 區域網路，開啟終端機列出的 `http://主機IP:8787`，按「加入此主機」；也可在遊戲的 IP 欄輸入該位址加入。
+1. 房主開啟 [本機連線主機](http://localhost:8787)，展開「區域網路 / IP 連線對戰」，輸入暱稱後按「建立房間」，把 6 位房間代碼傳給朋友。
+2. 另一位玩家連上同一 Wi-Fi，開啟 `http://主機IP:8787`，輸入暱稱與房間代碼後按「加入房間」；知道代碼者也可按「觀戰」。
 3. 雙方按「我準備好了」，房主再按「房主開始對戰」。房主可選黑／白；換色後雙方需重新準備。
 
-連線時方向鍵或 WASD 都控制自己，Enter / Space 落定，也支援觸控。棋盤、方塊、勝負與暫停由主機同步。對局進行中若有人斷線，主機會暫停並保留完整棋盤，等待最多 60 秒以工作階段憑證重連；逾時則判留下的玩家獲勝並回到大廳。大廳中離開仍會立刻讓出座位。原本同機模式仍可直接開啟 `docs/index.html`，不用安裝套件。
+連線時方向鍵或 WASD 都控制自己，Enter / Space 落定，也支援觸控。棋盤、方塊、勝負與暫停由主機同步。對局中斷線可在 60 秒內以工作階段憑證回到**原房間原座位**；雙方離開後房間保留 5 分鐘供重連或再戰。主機最多 50 間房間。連線對局結果會記入匿名勝場榜（同暱稱累計），同機與 AI 對局不上傳。原本同機／AI 模式仍可直接開啟 `docs/index.html`，不用暱稱或套件。
 
-**GitHub Pages 僅提供靜態遊戲，連線對戰需有一台電腦執行主機。** IP 加入會前往該主機提供的遊戲頁面。每台主機提供一間雙人房；沒有自動掃描 LAN 或跨網際網路配對。更多連接埠及排錯方式請見 [連線對戰說明](docs/lan-play.md)。若要以 Docker 在內網主機常駐並自動更新，見 [拉取式部署說明](docs/deploy.md)。
+**GitHub Pages 僅提供靜態遊戲，連線對戰需有一台電腦執行主機。** IP 欄可帶上房間代碼前往該主機。沒有自動掃描 LAN 或跨網際網路配對。更多協定與排錯請見 [連線對戰說明](docs/lan-play.md)。Docker 部署見 [拉取式部署說明](docs/deploy.md)。
 
 ## 專案結構
 
@@ -49,14 +49,15 @@ npm start
 │   ├── game-core.js       # 獨立遊戲規則
 │   ├── game.js            # 畫面、鍵盤與觸控
 │   ├── ai.js              # 單人模式 AI
-│   ├── network.js         # 連線及 IP 加入
+│   ├── network.js         # 連線、房間代碼與暱稱
 │   ├── audio.js           # Web Audio 音效
 │   ├── session-record.js  # 本場戰績
 │   ├── lan-play.md        # 連線對戰說明
 │   ├── deploy.md          # Docker / Watchtower 部署
 │   ├── github-pages.md    # 網頁版發佈說明
 │   └── screenshots/      # 現行版本與開發過程截圖
-├── server/index.cjs       # HTTP / WebSocket 連線主機
+├── server/index.cjs       # HTTP / WebSocket 多房間主機
+├── server/leaderboard.cjs # SQLite 匿名排行榜
 ├── deploy/docker-compose.yml
 ├── Dockerfile
 ├── package.json           # npm start / npm test
@@ -65,6 +66,7 @@ npm start
     ├── game-core.test.cjs
     ├── ai.test.cjs
     ├── network.test.cjs
+    ├── rooms.test.cjs
     └── session-record.test.cjs
 ```
 

@@ -30,7 +30,7 @@
    curl -s http://localhost:8787/healthz
    ```
 
-   應回 `200` 與 JSON，例如 `{"ok":true,"uptime":…,"room":{…}}`。瀏覽器開啟 `http://伺服器IP:8787` 即可建立房間。
+   應回 `200` 與 JSON，例如 `{"ok":true,"uptime":…,"rooms":0,"maxRooms":50}`。瀏覽器開啟 `http://伺服器IP:8787` 即可建立房間。排行榜資料寫在掛載的 `./data`（容器內 `DATA_DIR=/app/data`），請保留該目錄以便更新後戰績仍在。
 
 ## 之後的更新（不用再登入伺服器）
 
