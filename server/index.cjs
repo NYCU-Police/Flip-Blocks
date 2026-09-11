@@ -36,6 +36,9 @@ function createServer({
   const started = Date.now();
   const rooms = new Map();
   const tokens = new Map();
+  let draining = false;
+  let closed = false;
+  function isDraining() { return draining; }
   const abuse = createAbuseState({ trustProxy, createWindowMs, httpWindowMs, httpPerMin });
   const {
     socketsByIp, roomsByIp, createHits, httpHits, rejected,
@@ -56,7 +59,7 @@ function createServer({
   attachConnections(wss, {
     rooms, tokens, rejected, maxRooms, maxRoomsPerIp, createPerMin, createWindowMs,
     rateLimit, maxPayload, joinIdleMs, roomsByIp, createHits, allowWindow, takeRoom,
-    dropSocket, send, ...life
+    dropSocket, send, ...life, isDraining
   });
   let lastTick = performance.now();
   const tick = setInterval(() => {
@@ -93,14 +96,26 @@ function createServer({
   }
   const stats = statsMs > 0 ? setInterval(writeStats, statsMs) : null;
   async function close() {
+    if (closed) return;
+    closed = true;
     clearInterval(tick); clearInterval(heartbeat); if (stats) clearInterval(stats);
     for (const ws of wss.clients) ws.terminate();
     await new Promise(resolve => wss.close(resolve));
     await new Promise(resolve => server.close(resolve));
     board.close();
   }
+  async function drain(timeoutMs = 30000) {
+    draining = true;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (![...rooms.values()].some(room => life.matchActive(room))) break;
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    await close();
+  }
   return {
-    server, close, leaderboard: board, rooms,
+    server, close, drain, isDraining,
+    leaderboard: board, rooms,
     limits: { maxRooms, maxRoomsPerIp, maxSocketsPerIp, createPerMin, httpPerMin, maxPayload, maxClients, rateLimit }
   };
 }
@@ -116,7 +131,7 @@ if (require.main === module) {
     }
     console.log(`空房逾時後回收。TRUST_PROXY=${envFlag('TRUST_PROXY', false) ? 'true' : 'false'}。Ctrl+C 關閉。`);
   });
-  for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => app.close().then(() => process.exit()));
+  for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => app.drain().then(() => process.exit()));
 }
 module.exports = {
   createServer, resolveClientIp,

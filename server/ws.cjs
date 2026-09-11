@@ -52,7 +52,7 @@ function attachConnections(wss, ctx) {
     dropSocket, send,
     roomOf, broadcast, claimSeat, resumeIfReady, recipients, seatTaken,
     beginMatch, stopInput, recordOutcome, matchActive, forfeitToLobby, lobbyDepart,
-    startReconnect, issueToken
+    startReconnect, issueToken, isDraining
   } = ctx;
   function reject(ws, message) {
     send(ws, { type: 'error', message });
@@ -114,6 +114,7 @@ function attachConnections(wss, ctx) {
         }
         if (msg.role !== 'host' && !parseCode(msg.code)) { reject(ws, '房間代碼無效。'); return; }
         if (msg.role === 'host' && !parseCode(msg.code)) {
+          if (isDraining()) { reject(ws, '無法建立房間，請稍後再試。'); return; }
           if (rooms.size >= maxRooms) { reject(ws, '無法建立房間，請稍後再試。'); return; }
           const created = roomsByIp.get(ws.clientIp);
           if (created && created.size >= maxRoomsPerIp) { rejected.rooms += 1; reject(ws, '無法建立房間，請稍後再試。'); return; }
