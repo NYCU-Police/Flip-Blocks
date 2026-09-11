@@ -139,6 +139,68 @@ test('invalid nicknames are disconnected and the leaderboard records each match 
   assert.equal(again.rankings[0].wins, 1);
 });
 
+test('leaving a live match records a win on the leaderboard', async t => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flip-forfeit-'));
+  const { open, port } = await start(t, { dataDir });
+  const before = await (await fetch(`http://127.0.0.1:${port}/leaderboard`)).json();
+  assert.deepEqual(before.rankings, []);
+  const host = await open({ type: 'join', role: 'host', name: 'Stay' });
+  const code = (await host.wait(m => m.type === 'joined')).code;
+  const guest = await open({ type: 'join', role: 'guest', name: 'Quit', code });
+  await guest.wait(m => m.connected?.every(Boolean));
+  host.send({ type: 'ready' }); guest.send({ type: 'ready' });
+  await host.wait(m => m.ready?.every(Boolean));
+  host.send({ type: 'start' });
+  await host.wait(m => m.game?.state === 'playing');
+  guest.send({ type: 'leave' });
+  await host.wait(m => m.game?.state === 'ready' && m.connected?.[1] === false);
+  const after = await (await fetch(`http://127.0.0.1:${port}/leaderboard`)).json();
+  assert.equal(after.rankings.length, before.rankings.length + 1);
+  assert.deepEqual(after.rankings, [{ name: 'Stay', wins: 1 }]);
+});
+
+test('host leaving a live match records a win for the guest', async t => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flip-host-forfeit-'));
+  const { open, port } = await start(t, { dataDir });
+  const before = await (await fetch(`http://127.0.0.1:${port}/leaderboard`)).json();
+  assert.deepEqual(before.rankings, []);
+  const host = await open({ type: 'join', role: 'host', name: 'Quit' });
+  const code = (await host.wait(m => m.type === 'joined')).code;
+  const guest = await open({ type: 'join', role: 'guest', name: 'Stay', code });
+  await guest.wait(m => m.connected?.every(Boolean));
+  host.send({ type: 'ready' }); guest.send({ type: 'ready' });
+  await host.wait(m => m.ready?.every(Boolean));
+  host.send({ type: 'start' });
+  await host.wait(m => m.game?.state === 'playing');
+  host.send({ type: 'leave' });
+  await guest.wait(m => m.game?.state === 'ready' && m.connected?.[0] === false);
+  const after = await (await fetch(`http://127.0.0.1:${port}/leaderboard`)).json();
+  assert.equal(after.rankings.length, before.rankings.length + 1);
+  assert.deepEqual(after.rankings, [{ name: 'Stay', wins: 1 }]);
+});
+
+test('restart is ignored until the match is over', async t => {
+  const { open, app } = await start(t);
+  const host = await open({ type: 'join', role: 'host', name: 'Host' });
+  const code = (await host.wait(m => m.type === 'joined')).code;
+  const guest = await open({ type: 'join', role: 'guest', name: 'Guest', code });
+  await guest.wait(m => m.connected?.every(Boolean));
+  host.send({ type: 'ready' }); guest.send({ type: 'ready' });
+  await host.wait(m => m.ready?.every(Boolean));
+  host.send({ type: 'start' });
+  await host.wait(m => m.game?.state === 'playing');
+  host.send({ type: 'restart' });
+  await new Promise(resolve => setTimeout(resolve, 80));
+  assert.equal(host.messages.filter(m => m.type === 'state').at(-1).game.state, 'playing');
+  const room = [...app.rooms.values()][0];
+  room.game.state = 'over';
+  room.game.winner = 0;
+  host.send({ type: 'restart' });
+  const reset = await host.wait(m => m.game?.state === 'ready');
+  assert.deepEqual(reset.ready, [false, false]);
+  assert.deepEqual(reset.game.locked, [0, 0]);
+});
+
 test('rate-limited connections are closed', async t => {
   const { open } = await start(t, { rateLimit: 8 });
   const host = await open({ type: 'join', role: 'host', name: 'Fast' });

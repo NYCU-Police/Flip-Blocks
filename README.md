@@ -1,6 +1,6 @@
 # Flip Blocks / 翻轉方塊
 
-雙人領地爭奪：共用棋盤、推進方塊、切斷連結、翻轉顏色，率先佔領 70% 即獲勝。
+雙人領地爭奪：共用棋盤、推進方塊、切斷連結、翻轉顏色，率先佔領 75% 即獲勝。
 
 ## 立即遊玩
 
@@ -18,7 +18,7 @@
 | --- | --- |
 | 同機雙人 | 兩人共用一台裝置。玩家一可選經典（方向鍵 + Enter）或替代（Z/X 旋轉、↑ 落定）方案，玩家二固定 WASD + Space，也支援觸控。 |
 | 單人對戰 AI | 你操作玩家一，電腦操作玩家二。可選新手／簡單／普通／困難，上次難度會記住。新手與簡單會放慢玩家下落。 |
-| 線上對戰 | 輸入暱稱後建立房間或加入房間，也可觀戰。支援多房間、匿名排行榜，以及斷線後回到原座位。 |
+| 線上對戰 | 輸入暱稱後快速配對、建立房間或加入房間，也可觀戰。支援多房間、匿名排行榜，以及斷線後回到原座位。 |
 
 三種模式都有選色、下個方塊預覽、落點提示、音效、暫停與再戰；切換分頁或視窗會自動暫停。手機寬度可在棋盤上滑動手勢（左右移動、輕觸旋轉、快滑落定、慢拉加速）。
 
@@ -27,7 +27,7 @@
 玩家只要開已部署的網址（或自架主機提供的頁面），不必填主機 IP。
 
 1. 選「線上對戰」，輸入 2–12 字**暱稱**（會記住）。
-2. 按「建立房間」得到 6 位**房間代碼**（大寫字母與數字，不含 0/O/1/I），複製代碼或「分享連結」（`?room=代碼`）給朋友。
+2. 按「快速配對」等待對手，湊滿兩人後進入大廳再準備開始；或按「建立房間」得到 6 位**房間代碼**（大寫字母與數字，不含 0/O/1/I），複製代碼或「分享連結」（`?room=代碼`）給朋友。
 3. 朋友開啟同一網站，輸入暱稱與房間代碼後按「加入房間」。知道代碼者也可「以觀戰加入」，只看狀態、不能操作。
 4. 雙方按「我準備好了」，房主選色並開始。換色後需重新準備。
 
@@ -103,6 +103,7 @@ npm test
 │   └── screenshots/
 ├── server/
 │   ├── index.cjs             # HTTP / WebSocket 多房間主機
+│   ├── queue.cjs             # 快速配對佇列
 │   └── leaderboard.cjs       # SQLite 匿名排行榜
 ├── deploy/docker-compose.yml
 └── tests/
@@ -110,6 +111,7 @@ npm test
     ├── ai.test.cjs
     ├── network.test.cjs
     ├── rooms.test.cjs
+    ├── queue.test.cjs
     ├── abuse.test.cjs
     └── session-record.test.cjs
 ```
@@ -129,7 +131,7 @@ npm test
 | 軟降 | ↓ | S |
 | 硬降 | Enter | Space |
 
-棋盤為 10 × 20，含 I/O/T/S/Z/J/L。方塊落定與包圍會翻色，任一顏色達到 70% 佔領即結束。網頁版規則與操作見 [GitHub Pages 發佈說明](docs/github-pages.md)。更多說明見 [`FlipBlocksUnity/README.md`](FlipBlocksUnity/README.md)。
+棋盤為 10 × 20，含 I/O/T/S/Z/J/L。方塊落定與包圍會翻色，任一顏色達到 75% 佔領即結束。網頁版規則與操作見 [GitHub Pages 發佈說明](docs/github-pages.md)。更多說明見 [`FlipBlocksUnity/README.md`](FlipBlocksUnity/README.md)。
 
 macOS 建置入口為 `FlipBlocksUnity/Assets/Editor/BuildFlipBlocks.cs` 的 `BuildFlipBlocks.BuildMac`，輸出 `FlipBlocksUnityBuild/FlipBlocks.app`（已由 `.gitignore` 排除）。
 
@@ -137,6 +139,6 @@ macOS 建置入口為 `FlipBlocksUnity/Assets/Editor/BuildFlipBlocks.cs` 的 `Bu
 
 ## 致謝
 
-本專案基於 [yuxzs](https://github.com/yuxzs) 的原作 Flip-Blocks（Codea/Lua 原型與 Unity 版）。
+本專案基於 xuan 的想法，由 [yuxzs](https://github.com/yuxzs) 所做的原作 Flip-Blocks（Codea/Lua 原型與 Unity 版）。
 
-由 [Lu-An Chen](https://github.com/luancs11) @ [NYCU-Police](https://github.com/NYCU-Police/Flip-Blocks) 接續開發及部署（網頁版、連線對戰、AI、排行榜、CI/CD）。
+再由 [Lu-An Chen](https://github.com/luancs11) @ [NYCU-Police](https://github.com/NYCU-Police/Flip-Blocks) 接續開發及部署（網頁版、連線對戰、AI、排行榜、CI/CD）。

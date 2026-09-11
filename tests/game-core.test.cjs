@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {Game,SHAPES,cells,inBounds}=require('../docs/game-core.js');
+const {Game,SHAPES,cells,inBounds,acceptBoardPointer,WIN_PCT,WIN_CELLS}=require('../docs/game-core.js');
 
 test('both color choices start 50/50, with each color connected to its own home',()=>{
   for(const color of [1,2]) {
@@ -53,16 +53,26 @@ test('capture works symmetrically for white attacking black',()=>{
   assert.equal(game.capture(2),2);
   assert.equal(game.board[13][4],2);assert.equal(game.board[0][4],1);
 });
-test('69.5% does not end the game; 70% selects the right player with either color',()=>{
+test('just under the threshold does not end the game; WIN_PCT selects the right player with either color',()=>{
+  assert.equal(WIN_PCT,75);assert.equal(WIN_CELLS,150);
   for(const p1Color of [1,2]) for(const winnerColor of [1,2]) {
     const game=new Game();game.reset(p1Color);
-    game.board=Array.from({length:20},(_,y)=>Array.from({length:10},(_,x)=>y*10+x<139?winnerColor:3-winnerColor));
+    game.board=Array.from({length:20},(_,y)=>Array.from({length:10},(_,x)=>y*10+x<WIN_CELLS-1?winnerColor:3-winnerColor));
     game.checkWinner();assert.equal(game.state,'playing');
-    game.board[13][9]=winnerColor;game.checkWinner();
+    game.board[14][9]=winnerColor;game.checkWinner();
     assert.equal(game.state,'over');assert.equal(game.winner,game.sides.findIndex(s=>s.color===winnerColor));
     const before=JSON.stringify(game.board);game.step(1,true);game.tick(.1);
     assert.equal(JSON.stringify(game.board),before);
   }
+});
+test('74% does not win; 75% wins',()=>{
+  const game=new Game();game.reset(1);
+  game.board=Array.from({length:20},(_,y)=>Array.from({length:10},(_,x)=>y*10+x<148?1:2));
+  assert.equal(game.counts()[0],148);
+  game.checkWinner();assert.equal(game.state,'playing');
+  game.board[14][8]=1;game.board[14][9]=1;
+  assert.equal(game.counts()[0],150);
+  game.checkWinner();assert.equal(game.state,'over');assert.equal(game.winner,0);
 });
 test('original all-20-rows victory is preserved',()=>{
   const game=new Game();game.reset();
@@ -110,4 +120,25 @@ test('seeded random matches preserve territory and always terminate each move',(
     }
     assert.equal(game.state,'over');
   }
+});
+test('second finger cannot steal or finish a board gesture',()=>{
+  let gesture=null;
+  function down(id) {
+    if(!acceptBoardPointer(gesture,id,true)) return 'ignored';
+    gesture={id};
+    return 'started';
+  }
+  function up(id) {
+    if(!acceptBoardPointer(gesture,id,false)) return 'ignored';
+    const ended=gesture;
+    gesture=null;
+    return ended.id;
+  }
+  assert.equal(down(1),'started');
+  assert.equal(down(2),'ignored');
+  assert.equal(up(2),'ignored');
+  assert.equal(gesture.id,1);
+  assert.equal(up(1),1);
+  assert.equal(gesture,null);
+  assert.equal(acceptBoardPointer(null,2,false),false);
 });

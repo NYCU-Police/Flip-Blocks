@@ -19,6 +19,13 @@ services:
       HTTP_PER_MIN: ${HTTP_PER_MIN}
       MAX_CLIENTS: ${MAX_CLIENTS}
       RATE_LIMIT: ${RATE_LIMIT}
+      MAX_PAYLOAD: ${MAX_PAYLOAD}
+      JOIN_IDLE_MS: ${JOIN_IDLE_MS}
+      MAX_QUEUE_PER_IP: ${MAX_QUEUE_PER_IP}
+      QUEUE_IDLE_MS: ${QUEUE_IDLE_MS}
+      ROOM_TTL_MS: ${ROOM_TTL_MS}
+      RECONNECT_MS: ${RECONNECT_MS}
+      STATS_MS: ${STATS_MS}
     volumes:
       - ./data:/app/data
     labels:

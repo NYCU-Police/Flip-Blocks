@@ -83,11 +83,12 @@ test('hard two-step look-ahead beats greedy one-step on a setup board', () => {
   game.board[4][1] = 2;
   game.board[5][1] = 2;
   whitePiece(game, 'O', ['I', 'T', 'L']);
+  const flips = { ...FLIP, win: 0, lose: 0 };
 
-  const greedy = chooseMove(game, 1, 'normal', { weights: FLIP, lookAhead: 1, random: () => 0 });
-  const planned = chooseMove(game, 1, 'hard', { weights: FLIP, lookAhead: 2, random: () => 0 });
-  const greedyNow = evaluatePlacement(game, 1, greedy, { weights: FLIP, lookAhead: 1 });
-  const planNow = evaluatePlacement(game, 1, planned, { weights: FLIP, lookAhead: 1 });
+  const greedy = chooseMove(game, 1, 'normal', { weights: flips, lookAhead: 1, random: () => 0 });
+  const planned = chooseMove(game, 1, 'hard', { weights: flips, lookAhead: 2, random: () => 0 });
+  const greedyNow = evaluatePlacement(game, 1, greedy, { weights: flips, lookAhead: 1 });
+  const planNow = evaluatePlacement(game, 1, planned, { weights: flips, lookAhead: 1 });
   assert.ok(greedyNow.flips > planNow.flips, `one-step ${greedyNow.flips} should beat immediate ${planNow.flips}`);
   assert.ok(greedy.x !== planned.x || greedy.rot !== planned.rot, 'look-ahead should pick a different landing');
 
@@ -95,10 +96,10 @@ test('hard two-step look-ahead beats greedy one-step on a setup board', () => {
   enact(afterGreedy, 1, greedy);
   const afterPlan = cloneGame(game);
   enact(afterPlan, 1, planned);
-  const nextGreedy = chooseMove(afterGreedy, 1, 'normal', { weights: FLIP, lookAhead: 1, random: () => 0 });
-  const nextPlan = chooseMove(afterPlan, 1, 'normal', { weights: FLIP, lookAhead: 1, random: () => 0 });
-  const totalGreedy = greedyNow.flips + evaluatePlacement(afterGreedy, 1, nextGreedy, { weights: FLIP, lookAhead: 1 }).flips;
-  const totalPlan = planNow.flips + evaluatePlacement(afterPlan, 1, nextPlan, { weights: FLIP, lookAhead: 1 }).flips;
+  const nextGreedy = chooseMove(afterGreedy, 1, 'normal', { weights: flips, lookAhead: 1, random: () => 0 });
+  const nextPlan = chooseMove(afterPlan, 1, 'normal', { weights: flips, lookAhead: 1, random: () => 0 });
+  const totalGreedy = greedyNow.flips + evaluatePlacement(afterGreedy, 1, nextGreedy, { weights: flips, lookAhead: 1 }).flips;
+  const totalPlan = planNow.flips + evaluatePlacement(afterPlan, 1, nextPlan, { weights: flips, lookAhead: 1 }).flips;
   assert.ok(totalPlan > totalGreedy, `two-step ${totalPlan} should beat one-step ${totalGreedy}`);
 });
 
@@ -106,6 +107,9 @@ test('novice is leakier than easy and often takes the second-best landing', () =
   assert.ok(DIFFICULTIES.novice.noise > DIFFICULTIES.easy.noise);
   assert.ok(DIFFICULTIES.novice.secondBest > DIFFICULTIES.easy.secondBest);
   assert.ok(DIFFICULTIES.novice.moveMs > DIFFICULTIES.easy.moveMs);
+  assert.equal(DIFFICULTIES.novice.moveMs, 1000);
+  assert.equal(DIFFICULTIES.easy.moveMs, 600);
+  assert.equal(DIFFICULTIES.novice.hardDrop, false);
   assert.equal(DIFFICULTIES.novice.dropScale, 0.7);
   assert.equal(DIFFICULTIES.easy.dropScale, 0.7);
   assert.equal(DIFFICULTIES.normal.dropScale, 1);
