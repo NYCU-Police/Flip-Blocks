@@ -20,8 +20,8 @@
   };
 
   const DIFFICULTIES = {
-    novice: { id: 'novice', noise: 18, secondBest: 0.65, moveMs: 420, lookAhead: 1, dropScale: 0.7 },
-    easy: { id: 'easy', noise: 7, secondBest: 0.3, moveMs: 260, lookAhead: 1, dropScale: 0.7 },
+    novice: { id: 'novice', noise: 18, secondBest: 0.65, moveMs: 1000, lookAhead: 1, dropScale: 0.7, hardDrop: false },
+    easy: { id: 'easy', noise: 7, secondBest: 0.3, moveMs: 600, lookAhead: 1, dropScale: 0.7 },
     normal: { id: 'normal', noise: 0, secondBest: 0, moveMs: 140, lookAhead: 1, dropScale: 1 },
     hard: { id: 'hard', noise: 0, secondBest: 0, moveMs: 85, lookAhead: 2, dropScale: 1 }
   };
@@ -260,6 +260,7 @@
       if (p.rot !== target.rot) { this.game.rotate(this.owner); return; }
       if (p.x < target.x) { this.game.move(this.owner, 1); return; }
       if (p.x > target.x) { this.game.move(this.owner, -1); return; }
+      if (this.spec().hardDrop === false) return;
       this.game.step(this.owner, true);
       this.plan = null;
       this.key = '';

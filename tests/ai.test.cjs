@@ -107,6 +107,9 @@ test('novice is leakier than easy and often takes the second-best landing', () =
   assert.ok(DIFFICULTIES.novice.noise > DIFFICULTIES.easy.noise);
   assert.ok(DIFFICULTIES.novice.secondBest > DIFFICULTIES.easy.secondBest);
   assert.ok(DIFFICULTIES.novice.moveMs > DIFFICULTIES.easy.moveMs);
+  assert.equal(DIFFICULTIES.novice.moveMs, 1000);
+  assert.equal(DIFFICULTIES.easy.moveMs, 600);
+  assert.equal(DIFFICULTIES.novice.hardDrop, false);
   assert.equal(DIFFICULTIES.novice.dropScale, 0.7);
   assert.equal(DIFFICULTIES.easy.dropScale, 0.7);
   assert.equal(DIFFICULTIES.normal.dropScale, 1);
