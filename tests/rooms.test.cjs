@@ -159,6 +159,26 @@ test('leaving a live match records a win on the leaderboard', async t => {
   assert.deepEqual(after.rankings, [{ name: 'Stay', wins: 1 }]);
 });
 
+test('host leaving a live match records a win for the guest', async t => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'flip-host-forfeit-'));
+  const { open, port } = await start(t, { dataDir });
+  const before = await (await fetch(`http://127.0.0.1:${port}/leaderboard`)).json();
+  assert.deepEqual(before.rankings, []);
+  const host = await open({ type: 'join', role: 'host', name: 'Quit' });
+  const code = (await host.wait(m => m.type === 'joined')).code;
+  const guest = await open({ type: 'join', role: 'guest', name: 'Stay', code });
+  await guest.wait(m => m.connected?.every(Boolean));
+  host.send({ type: 'ready' }); guest.send({ type: 'ready' });
+  await host.wait(m => m.ready?.every(Boolean));
+  host.send({ type: 'start' });
+  await host.wait(m => m.game?.state === 'playing');
+  host.send({ type: 'leave' });
+  await guest.wait(m => m.game?.state === 'ready' && m.connected?.[0] === false);
+  const after = await (await fetch(`http://127.0.0.1:${port}/leaderboard`)).json();
+  assert.equal(after.rankings.length, before.rankings.length + 1);
+  assert.deepEqual(after.rankings, [{ name: 'Stay', wins: 1 }]);
+});
+
 test('restart is ignored until the match is over', async t => {
   const { open, app } = await start(t);
   const host = await open({ type: 'join', role: 'host', name: 'Host' });
