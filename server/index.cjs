@@ -308,20 +308,24 @@ function createServer({
   function issueToken() { return crypto.randomBytes(16).toString('hex'); }
   function pct(count) { return Number((count / 2).toFixed(1)); }
   function recordOutcome(room, winner) {
-    if (room.recorded || winner !== 0 && winner !== 1) return;
-    const winnerName = room.names[winner], loserName = room.names[1 - winner];
-    if (!winnerName || !loserName || !room.matchKey) return;
-    const counts = room.game.counts();
-    const winColor = room.game.sides[winner].color;
-    const loseColor = room.game.sides[1 - winner].color;
-    room.recorded = board.record({
-      room: room.code,
-      matchKey: room.matchKey,
-      winnerName,
-      loserName,
-      winnerPct: pct(counts[winColor - 1]),
-      loserPct: pct(counts[loseColor - 1])
-    }) || room.recorded;
+    try {
+      if (room.recorded || winner !== 0 && winner !== 1) return;
+      const winnerName = room.names[winner], loserName = room.names[1 - winner];
+      if (!winnerName || !loserName || !room.matchKey) return;
+      const counts = room.game.counts();
+      const winColor = room.game.sides[winner].color;
+      const loseColor = room.game.sides[1 - winner].color;
+      room.recorded = board.record({
+        room: room.code,
+        matchKey: room.matchKey,
+        winnerName,
+        loserName,
+        winnerPct: pct(counts[winColor - 1]),
+        loserPct: pct(counts[loseColor - 1])
+      }) || room.recorded;
+    } catch (error) {
+      console.error('無法寫入排行榜：', error);
+    }
   }
   function beginMatch(room) {
     room.matchSeq += 1;

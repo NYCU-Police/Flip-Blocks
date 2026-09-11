@@ -7,6 +7,7 @@ function openLeaderboard(dataDir) {
   fs.mkdirSync(dataDir, { recursive: true });
   const db = new Database(path.join(dataDir, 'flip-blocks.sqlite'));
   db.pragma('journal_mode = WAL');
+  db.pragma('busy_timeout = 5000');
   db.exec(`
     CREATE TABLE IF NOT EXISTS matches (
       id INTEGER PRIMARY KEY,
@@ -48,7 +49,8 @@ function openLeaderboard(dataDir) {
       return true;
     } catch (error) {
       if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') return false;
-      throw error;
+      console.error('無法寫入排行榜：', error);
+      return false;
     }
   }
 
