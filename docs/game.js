@@ -6,7 +6,7 @@
   let lastTime=0, previousState='', previousQueues='', previousLocks=0;
   let previousBoardKey='', previousClock='', previousHud='';
   let softSent=false, softAt=0, wasNetwork=false, heardOver=false;
-  let playMode='local', ai=null;
+  let playMode='local', onlineMode=false, ai=null, gesture=null, gestureCoachOn=false, wasPlaying=false;
   const network=new FlipNetwork.Connection(networkChanged, snapshot=>{
     FlipNetwork.applyGame(game,snapshot);
     previousBoardKey=''; previousState='';
@@ -17,20 +17,112 @@
   function remainSecs() {
     return network.reconnect?Math.max(0,Math.ceil((network.reconnect.deadline-Date.now())/1000)):-1;
   }
-  function networkChanged() {
-    if(wasNetwork&&!network.active) {stopAI();playMode=selectedMode();clearInput();game.state='ready';}
-    wasNetwork=network.active;
-    const joined=network.owner!==null, both=network.connected.every(Boolean);
-    $('mode-label').textContent=network.active?'區域網路對戰':(playMode==='ai'?'單人對戰 AI':'同機雙人對戰');
-    $('host').disabled=network.active;$('join').disabled=network.active;
-    $('join-ip').disabled=network.active;$('server-address').disabled=network.active;
-    $('leave').hidden=!network.active;$('ready').hidden=!joined||game.state!=='ready'||network.reconnect||network.pendingReconnect;
-    $('ready').textContent=network.ready[network.owner]?'取消準備':'我準備好了';
+  function lobbyStatus() {
+    if(network.message) return network.message;
+    if(!onlineMode) return '';
+    if(!network.active) return '輸入暱稱後，建立房間或加入朋友的房間。';
+    const code=network.code||'';
+    const names=network.names||['',''];
     const secs=remainSecs();
-    $('network-status').textContent=network.message||(joined?
-      (network.reconnect?`對方斷線，等待重連中（剩餘 ${secs} 秒）`:
-      `你是玩家${network.owner+1} · ${both?'雙方已連線':'等待玩家二加入'} · P1 ${network.ready[0]?'已準備':'未準備'} / P2 ${network.ready[1]?'已準備':'未準備'}`):
-      '尚未連線。每個主機提供一間雙人房。');
+    if(network.pendingReconnect) return '正在重新連線…';
+    if(network.reconnect) return `對手斷線，${secs} 秒內可重連…`;
+    if(network.spectating) return `觀戰中 · ${names[0]||'玩家一'} vs ${names[1]||'玩家二'}`;
+    if(!network.connected.every(Boolean)) return `等待對手加入…（代碼 ${code}）`;
+    if(game.state==='ready') {
+      if(network.ready.every(Boolean)) return '雙方已準備，房主可以開始';
+      return '對手已加入，雙方按準備開始';
+    }
+    if(game.state==='playing') return '對戰進行中';
+    if(game.state==='paused') return '對戰已暫停';
+    if(game.state==='over') return names[game.winner]?`${names[game.winner]} 獲勝`:'對局結束';
+    return '';
+  }
+  function setStage(play) {
+    document.body.classList.toggle('stage-pick',!play);
+    document.body.classList.toggle('stage-play',play);
+    $('mode-home').hidden=play;
+    $('play-stage').hidden=!play;
+    $('back-modes').hidden=!play;
+    layoutPlayfield();
+  }
+  function layoutPlayfield() {
+    const arena=document.querySelector('.arena');
+    if(!arena) return;
+    if(window.matchMedia('(max-width: 768px)').matches) {
+      arena.style.removeProperty('--board-w');
+      return;
+    }
+    const styles=getComputedStyle(arena);
+    const side=parseFloat(styles.getPropertyValue('--side'))||184;
+    const gap=parseFloat(styles.getPropertyValue('--gap'))||16;
+    const chrome=document.body.classList.contains('match-playing')?160:200;
+    const cap=520, arenaMax=1120;
+    const byHeight=(window.innerHeight-chrome)/2;
+    const byWidth=Math.min(arenaMax,window.innerWidth-48)-side*2-gap*2;
+    const width=Math.round(Math.min(cap,Math.max(180,Math.min(byHeight,byWidth))));
+    arena.style.setProperty('--board-w',width+'px');
+  }
+  function enterMode(mode) {
+    onlineMode=mode==='online';
+    playMode=mode==='ai'?'ai':'local';
+    const radio=document.querySelector(`input[name="mode"][value="${playMode}"]`);
+    if(radio) radio.checked=true;
+    $('online-panel').hidden=!onlineMode;
+    setStage(true);
+    if(game.state==='ready'&&!network.active) {
+      clearInput();
+      game.reset(Number(document.querySelector('input[name="color"]:checked').value));
+      game.state='ready';
+    }
+    previousState='';
+    syncModeUi();
+    refreshRecord();
+    render();
+    layoutPlayfield();
+    if(onlineMode&&!network.active) $('nickname').focus();
+  }
+  function exitMode() {
+    gestureCoachOn=false;
+    if($('gesture-coach')) $('gesture-coach').hidden=true;
+    if(network.active) network.leave();
+    network.message='';
+    stopAI();
+    clearInput();
+    playMode='local';
+    onlineMode=false;
+    game.reset(1);
+    game.state='ready';
+    previousLocks=0;previousQueues='';previousState='';
+    $('online-panel').hidden=true;
+    setStage(false);
+    $('mode-label').textContent='選擇模式';
+    syncModeUi();
+    refreshRecord();
+    render();
+  }
+  function networkChanged() {
+    if(wasNetwork&&!network.active) {stopAI();playMode=onlineMode?'local':selectedMode();clearInput();game.state='ready';}
+    wasNetwork=network.active;
+    if(network.active) {
+      onlineMode=true;
+      $('online-panel').hidden=false;
+      setStage(true);
+    }
+    const joined=network.owner!==null, both=network.connected.every(Boolean);
+    $('mode-label').textContent=network.active?(network.spectating?'觀戰中':`線上房間 ${network.code||''}`):
+      (onlineMode?'線上對戰':(playMode==='ai'?'單人對戰 AI':'同機雙人對戰'));
+    $('host').disabled=network.active;$('join').disabled=network.active;$('spectate').disabled=network.active;
+    $('join-ip').disabled=network.active;$('server-address').disabled=network.active;
+    $('nickname').disabled=network.active;$('room-code-input').disabled=network.active;
+    $('leave').hidden=!network.active;$('ready').hidden=!joined||network.spectating||game.state!=='ready'||network.reconnect||network.pendingReconnect;
+    $('ready').textContent=network.ready[network.owner]?'取消準備':'我準備好了';
+    $('network-status').textContent=lobbyStatus();
+    $('room-share').hidden=!network.active||!network.code;
+    $('room-code-display').textContent=network.code||'';
+    const watchers=$('watchers');
+    watchers.hidden=!network.active;
+    const extra=network.spectatorNames?.length?`：${network.spectatorNames.join('、')}`:'';
+    watchers.textContent=`觀戰 ${network.spectators||0} 人${extra}`;
     for(let owner=0;owner<2;owner++) {
       const panel=document.querySelector(owner===0?'.player-one':'.player-two');
       panel.classList.toggle('remote',joined&&owner!==network.owner);
@@ -41,24 +133,62 @@
     render();
   }
   function connect(role) {
-    stopAI();playMode='local';
+    stopAI();playMode='local';onlineMode=true;
     clearInput();game.state='ready';
-    $('network-panel').open=true;
+    enterMode('online');
     if(!['http:','https:'].includes(location.protocol)) {
-      network.message='請先執行 npm start，開啟 http://localhost:8787 建立房間；朋友可在上方輸入主機 IP。';networkChanged();return;
+      network.message='請用網站開啟此頁再進行線上對戰。';networkChanged();return;
     }
-    network.connect(role,Number(document.querySelector('input[name="color"]:checked').value));
+    const name=FlipNetwork.parseName($('nickname').value);
+    if(!name) {network.message='請輸入 2–12 字暱稱。';networkChanged();return;}
+    FlipNetwork.saveName(name);
+    const code=FlipNetwork.parseCode($('room-code-input').value);
+    if(role!=='host'&&!code) {network.message='請輸入 6 位房間代碼。';networkChanged();return;}
+    network.connect(role,{color:Number(document.querySelector('input[name="color"]:checked').value),name,code});
   }
+  function shareUrl(code) {
+    const url=new URL(location.href);
+    url.search='';url.hash='';
+    url.searchParams.set('room',code);
+    return url.href;
+  }
+  function flashCopied(button,label) {
+    const original=button.textContent;
+    button.textContent=label;
+    setTimeout(()=>{button.textContent=original;},1600);
+  }
+  async function copyText(text,button,done) {
+    try {
+      await navigator.clipboard.writeText(text);
+      flashCopied(button,done);
+    } catch {
+      network.message='無法自動複製，請手動選取。';
+      networkChanged();
+    }
+  }
+  $('pick-ai').addEventListener('click',()=>enterMode('ai'));
+  $('pick-local').addEventListener('click',()=>enterMode('local'));
+  $('pick-online').addEventListener('click',()=>enterMode('online'));
+  $('back-modes').addEventListener('click',exitMode);
   $('host').addEventListener('click',()=>connect('host'));
   $('join').addEventListener('click',()=>connect('guest'));
+  $('spectate').addEventListener('click',()=>connect('spectate'));
   $('ready').addEventListener('click',()=>network.send({type:'ready'}));
-  $('leave').addEventListener('click',()=>{network.leave();network.message='已離開連線，可開始同機對戰。';networkChanged();reset(true);});
+  $('leave').addEventListener('click',()=>{network.leave();network.message='';networkChanged();reset(true);});
+  $('copy-code').addEventListener('click',()=>{if(network.code) copyText(network.code,$('copy-code'),'已複製');});
+  $('copy-link').addEventListener('click',()=>{if(network.code) copyText(shareUrl(network.code),$('copy-link'),'連結已複製');});
+  $('room-code-input').addEventListener('input',event=>{
+    const next=[...event.target.value.toUpperCase()].filter(ch=>FlipNetwork.ROOM_ALPHABET.includes(ch)).join('').slice(0,6);
+    if(event.target.value!==next) event.target.value=next;
+  });
   $('join-form').addEventListener('submit',event=>{
     event.preventDefault();
     try {
       const url=FlipNetwork.serverAddress($('server-address').value);
-      if(url.origin===location.origin) connect('guest');
-      else {url.searchParams.set('join','1');location.assign(url.href);}
+      const code=FlipNetwork.parseCode($('room-code-input').value);
+      if(code) url.searchParams.set('room',code);
+      if(url.origin===location.origin) connect(code?'guest':'host');
+      else location.assign(url.href);
     } catch(error) {network.message=error.message;networkChanged();}
   });
   if(['http:','https:'].includes(location.protocol)) $('server-address').value=location.origin;
@@ -74,6 +204,18 @@
   }
   const pct=count=>Number((count/2).toFixed(1)).toString();
   const colorName=color=>color===1?'黑方 ↓':'白方 ↑';
+  function explainWin(g) {
+    if(!g||g.winner===null||g.winner===undefined) return {kind:'none',text:'對局結束'};
+    const color=g.sides[g.winner].color;
+    const n=g.counts()[color-1];
+    const score=pct(n);
+    const who=color===1?'黑方':'白方';
+    if(n>=140) return {kind:'threshold',text:`${who}佔領 ${score}%，達成 70% 目標！`};
+    const allRows=Array.isArray(g.board[0])&&g.board.every(row=>row.includes(color));
+    if(allRows) return {kind:'rows',text:`${who}已在全部 20 列現身，以 ${score}% 佔領獲勝`};
+    return {kind:'other',text:`對局結束 · ${who}以 ${score}% 佔領獲勝`};
+  }
+  FlipBlocks.explainWin=explainWin;
   function refreshRecord() {
     if(!globalThis.FlipRecord) return;
     $('session-record').textContent=FlipRecord.format(FlipRecord.load(),network.active,network.owner,playMode==='ai'&&!network.active);
@@ -100,20 +242,71 @@
     if(game.state!=='over') heardOver=false;
     void counts;
   }
-  function clearInput() {held.clear();pointerHolds.clear();sendSoft(false);}
-  function selectedMode() {return document.querySelector('input[name="mode"]:checked')?.value||'local';}
+  function clearInput() {held.clear();pointerHolds.clear();gesture=null;sendSoft(false);}
+  function selectedMode() {return playMode==='ai'?'ai':'local';}
   function selectedDifficulty() {return document.querySelector('input[name="difficulty"]:checked')?.value||'normal';}
+  const SCHEME_KEY='flip-blocks-control-scheme';
+  function selectedScheme() {return document.querySelector('input[name="scheme"]:checked')?.value==='alternate'?'alternate':'classic';}
+  function saveScheme(value) {
+    const id=value==='alternate'?'alternate':'classic';
+    try {localStorage.setItem(SCHEME_KEY,id);} catch {}
+    return id;
+  }
+  function loadScheme() {
+    try {if(localStorage.getItem(SCHEME_KEY)==='alternate') return 'alternate';} catch {}
+    return 'classic';
+  }
+  function controlMap() {
+    const alt=selectedScheme()==='alternate';
+    const p1=alt
+      ?{ArrowLeft:[0,'left'],ArrowRight:[0,'right'],KeyZ:[0,'ccw'],KeyX:[0,'rotate'],ArrowDown:[0,'soft'],ArrowUp:[0,'drop'],Enter:[0,'drop']}
+      :{ArrowLeft:[0,'left'],ArrowRight:[0,'right'],ArrowUp:[0,'rotate'],ArrowDown:[0,'soft'],Enter:[0,'drop']};
+    const p2={KeyA:[1,'left'],KeyD:[1,'right'],KeyW:[1,'rotate'],KeyS:[1,'soft'],Space:[1,'drop']};
+    const localTwo=!network.active&&playMode!=='ai';
+    if(localTwo) return Object.assign({},p1,p2);
+    if(!alt) p1.Space=[0,'drop'];
+    return p1;
+  }
+  function syncControlGuide() {
+    const binds=$('p1-binds');
+    if(!binds) return;
+    binds.innerHTML=selectedScheme()==='alternate'
+      ?'<p><span>左右移動</span><span><kbd>←</kbd> <kbd>→</kbd></span></p><p><span>旋轉</span><span><kbd>Z</kbd> <kbd>X</kbd></span></p><p><span>加速 / 落定</span><span><kbd>↓</kbd> <kbd>↑</kbd></span></p>'
+      :'<p><span>左右移動</span><span><kbd>←</kbd> <kbd>→</kbd></span></p><p><span>旋轉 / 加速</span><span><kbd>↑</kbd> <kbd>↓</kbd></span></p><p><span>直接落定</span><kbd>Enter</kbd></p>';
+  }
+  function dropScale() {
+    if(playMode!=='ai'||network.active) return 1;
+    const spec=FlipAI?.DIFFICULTIES?.[selectedDifficulty()];
+    return spec?.dropScale ?? 1;
+  }
+  function tickLocal(dt,fast) {
+    const flags=playMode==='ai'?[fast[0],false]:fast;
+    const scale=dropScale();
+    if(scale===1) {game.tick(dt,flags);return;}
+    const cap=Math.min(Math.max(dt,0),0.1);
+    const interval=flags[0]?0.08:0.45;
+    game.timers[0]+=cap*scale;
+    if(game.timers[0]>=interval) {game.timers[0]=0;game.step(0);}
+    if(game.state!=='playing') {game.elapsed+=cap;return;}
+    const keep=game.timers[0];
+    game.timers[0]=-1e6;
+    game.tick(dt,[false,false]);
+    game.timers[0]=keep;
+  }
   function stopAI() {if(ai){ai.stop();ai=null;}}
   function syncModeUi() {
-    const aiOn=(playMode==='ai'||selectedMode()==='ai')&&!network.active;
+    const aiOn=playMode==='ai'&&!network.active;
     $('difficulty-picker').hidden=!aiOn||game.state!=='ready';
     document.querySelector('.player-two .player-tag').textContent=aiOn?'CPU AI':'PLAYER 02';
-    document.querySelector('.player-two').classList.toggle('remote',aiOn||(network.active&&network.owner!==1));
-    const heading=$('p2-heading');
-    if(heading) heading.childNodes[0].textContent=aiOn?'電腦 AI ':'玩家二 ';
-    const guide=document.querySelector('.player-two .control-guide');
-    if(guide) guide.querySelector('h3').textContent=aiOn?'電腦對手':'操作方式';
-    if(!network.active) $('mode-label').textContent=aiOn?'單人對戰 AI':'同機雙人對戰';
+    document.querySelector('.player-two').classList.toggle('remote',aiOn||(network.active&&network.owner!==1)||network.spectating);
+    const p1=network.active&&network.names?.[0]?network.names[0]:'玩家一';
+    const p2=aiOn?'電腦 AI':(network.active&&network.names?.[1]?network.names[1]:'玩家二');
+    $('p1-name').textContent=p1;
+    $('p2-name').textContent=p2;
+    const guide=$('p2-guide');
+    if(guide) guide.querySelector('h3').textContent=aiOn?'電腦對手':'玩家二';
+    if(!network.active) $('mode-label').textContent=onlineMode?'線上對戰':(aiOn?'單人對戰 AI':'同機雙人對戰');
+    if($('play-stage').hidden) $('mode-label').textContent='選擇模式';
   }
   function reset(ready=false) {
     if(network.active) {network.send({type:ready?'restart':'start'});return;}
@@ -127,21 +320,29 @@
     if(!ready) board.focus({preventScroll:true});
   }
   function owns(owner) {
+    if(network.spectating) return false;
     if(network.active) return network.owner===owner;
     if(playMode==='ai') return owner===0;
     return true;
   }
   function action(owner,type) {
     if(game.state!=='playing'||!owns(owner)) return;
-    if(network.active) {if(type!=='soft') network.send({type:'input',action:type});return;}
+    if(network.active) {
+      if(type==='ccw') {network.send({type:'input',action:'rotate'});network.send({type:'input',action:'rotate'});network.send({type:'input',action:'rotate'});return;}
+      if(type!=='soft') network.send({type:'input',action:type});
+      return;
+    }
     if(type==='step') game.step(owner);
     if(type==='left') game.move(owner,-1);
     if(type==='right') game.move(owner,1);
     if(type==='rotate') game.rotate(owner);
+    if(type==='ccw') {game.rotate(owner);game.rotate(owner);game.rotate(owner);}
     if(type==='drop') game.step(owner,true);
     render();
   }
   function togglePause() {
+    if(network.spectating) return;
+    if($('play-stage').hidden) return;
     clearInput();
     if(network.active) {network.send({type:game.state==='paused'?'resume':'pause'});return;}
     game.pause();render();
@@ -154,6 +355,10 @@
     return `<div class="preview"><svg viewBox="0 0 48 48" role="img" aria-label="${shape} 型方塊">${points.map(([x,y])=>`<rect x="${xOffset+(x-minX)*10}" y="${yOffset+(maxY-y)*10}" width="8" height="8" rx="1" fill="currentColor"/>`).join('')}</svg></div>`;
   }
   function render() {
+    document.body.classList.toggle('match-playing',game.state==='playing'&&!$('play-stage').hidden);
+    layoutPlayfield();
+    if(game.state==='playing'&&!wasPlaying) maybeShowGestureCoach();
+    wasPlaying=game.state==='playing';
     const counts=game.counts(), classes=new Map();
     const boardKey=(Array.isArray(game.board[0])?game.board.flat().join(''):String(game.board))+JSON.stringify(game.pieces)+game.state;
     if(boardKey!==previousBoardKey) {
@@ -197,16 +402,17 @@
       cueMatch(counts);previousLocks=locked;
     }
     if(game.state==='over') cueMatch(counts);
-    const stateKey=JSON.stringify([game.state,network.active,network.owner,network.connected,network.ready,game.sides[0].color,remainSecs(),network.pendingReconnect,network.message,playMode,selectedDifficulty()]);
+    const stateKey=JSON.stringify([game.state,network.active,network.owner,network.connected,network.ready,game.sides[0].color,remainSecs(),network.pendingReconnect,network.message,playMode,selectedDifficulty(),selectedScheme(),network.code,network.names,network.spectating,network.spectators,onlineMode,$('play-stage').hidden]);
     if(stateKey===previousState) return;
     previousState=stateKey;
     const ready=game.state==='ready', paused=game.state==='paused', over=game.state==='over';
     const waiting=Boolean(network.reconnect), restoring=Boolean(network.pendingReconnect);
     $('overlay').hidden=game.state==='playing'&&!waiting&&!restoring;
     $('color-picker').hidden=!ready||waiting||restoring;
-    $('mode-picker').hidden=!ready||waiting||restoring||network.active;
-    $('difficulty-picker').hidden=!ready||waiting||restoring||network.active||selectedMode()!=='ai';
-    $('pause').disabled=ready||over||waiting||restoring;$('restart').disabled=ready||waiting||restoring||(network.active&&network.owner!==0);
+    $('mode-picker').hidden=true;
+    $('difficulty-picker').hidden=!ready||waiting||restoring||network.active||playMode!=='ai';
+    $('scheme-picker').hidden=waiting||restoring||network.spectating;
+    $('pause').disabled=ready||over||waiting||restoring||network.spectating||$('play-stage').hidden;$('restart').disabled=ready||waiting||restoring||network.spectating||$('play-stage').hidden||(network.active&&network.owner!==0);
     $('start').disabled=false;
     document.querySelectorAll('input[name="color"]').forEach(input=>{
       input.disabled=network.active&&network.owner!==0;
@@ -214,20 +420,23 @@
     });
     $('pause').innerHTML=paused?'繼續 <kbd>Esc</kbd>':'暫停 <kbd>Esc</kbd>';
     document.querySelectorAll('.touch-controls button').forEach(button=>button.disabled=game.state!=='playing'||!owns(Number(button.dataset.owner)));
+    if(onlineMode) $('network-status').textContent=lobbyStatus();
     if(waiting||restoring) {
       const secs=remainSecs();
       $('overlay-kicker').textContent='CONNECTION LOST';
-      $('overlay-title').textContent=restoring?'連線已中斷，正在重新連線…':'對方斷線，等待重連中';
-      $('overlay-description').textContent=restoring?'正在以工作階段憑證認領原座位，恢復後會從快照繼續。':
-        `對局已暫停並保留棋盤與方塊。剩餘 ${secs} 秒。`;
+      $('overlay-title').textContent=restoring?'正在重新連線…':'對手斷線，等待重連';
+      $('overlay-description').textContent=restoring?'正在回到原本的座位，恢復後會從剛才的棋盤繼續。':
+        `對局已暫停。對手還有 ${secs} 秒可以回來。`;
       $('start').textContent=restoring?'正在重新連線':'等待對手重連';
       $('start').disabled=true;
       $('overlay-note').textContent='逾時未歸則判留下的玩家獲勝';
-      $('match-status').textContent=restoring?'正在重新連線':`等待重連 ${secs}s`;
+      $('match-status').textContent=restoring?'正在重新連線':`對手斷線，${secs} 秒內可重連…`;
       clearInput();
     } else if(ready) {
       $('overlay-kicker').textContent='READY TO FLIP?';$('overlay-title').textContent=playMode==='ai'?'單人對戰 AI':'準備好翻轉戰局？';
-      $('overlay-description').innerHTML=playMode==='ai'?'你操作玩家一（方向鍵 + Enter）。<br>AI 操作玩家二。':'兩位玩家，共用一個棋盤。<br>用方塊搶下你的領地。';
+      $('overlay-description').innerHTML=playMode==='ai'
+        ?(selectedScheme()==='alternate'?'你操作玩家一（Z / X 旋轉，↑ 落定）。<br>AI 操作玩家二。':'你操作玩家一（方向鍵 + Enter）。<br>AI 操作玩家二。')
+        :'兩位玩家，共用一個棋盤。<br>用方塊搶下你的領地。';
       $('start').innerHTML=playMode==='ai'?'開始對戰 AI <span>↗</span>':'開始對戰 <span>↗</span>';
       $('overlay-note').textContent=($('session-record')?.textContent)||(playMode==='ai'?'選好難度與顏色後開始':'請兩位玩家就位');
       $('match-status').textContent='等待開始';refreshRecord();
@@ -237,11 +446,14 @@
       $('start').innerHTML='繼續對戰 <span>→</span>';$('overlay-note').textContent='也可以按 Esc 繼續';
       $('match-status').textContent='已暫停';clearInput();$('start').focus({preventScroll:true});
     } else if(over) {
-      const winner=game.winner,score=pct(counts[game.sides[winner].color-1]);
+      const winner=game.winner,reason=explainWin(game);
       $('overlay-kicker').textContent='TERRITORY CLAIMED';
       $('overlay-title').textContent=playMode==='ai'?(winner===0?'你獲勝！':'AI 獲勝！'):`玩家${winner===0?'一':'二'}獲勝！`;
-      $('overlay-description').textContent=`${colorName(game.sides[winner].color).slice(0,2)}佔領 ${score}% 領地・用時 ${$('clock').textContent}`;
-      $('start').innerHTML='再戰一局 <span>↗</span>';$('overlay-note').textContent='或按「新對局」重新選色';
+      $('overlay-description').textContent=`${reason.text}・用時 ${$('clock').textContent}`;
+      $('start').innerHTML='再戰一局 <span>↗</span>';
+      $('overlay-note').textContent=reason.kind==='rows'
+        ?'己方顏色出現在全部 20 列即可取勝，不必先到 70%。'
+        :'或按「新對局」重新選色';
       $('match-status').textContent=playMode==='ai'?(winner===0?'你獲勝！':'AI 獲勝！'):`玩家${winner===0?'一':'二'}獲勝！`;
       clearInput();$('start').focus({preventScroll:true});
     } else {clearInput();$('match-status').textContent='對戰進行中';if(!document.hidden) board.focus({preventScroll:true});}
@@ -249,16 +461,21 @@
       $('ready').hidden=network.owner===null||!ready;
       if(ready) {
         clearInput();
-        $('overlay-title').textContent=network.owner===null?'正在連線…':'連線房間';
-        $('overlay-description').textContent=network.connected.every(Boolean)?'雙方按「我準備好了」，再由房主開始。':'等待對手加入。將主機 IP 告訴朋友。';
-        $('start').textContent='房主開始對戰';
-        $('start').disabled=network.owner!==0||!network.connected.every(Boolean)||!network.ready.every(Boolean);
-        $('overlay-note').textContent='準備按鈕位於上方「區域網路 / IP 連線對戰」';
-        $('match-status').textContent='等待雙方準備';
+        $('overlay-title').textContent=network.spectating?`觀戰 ${network.code}`:(network.owner===null?'正在連線…':`房間 ${network.code}`);
+        $('overlay-description').textContent=network.spectating?`${network.names[0]||'玩家一'} vs ${network.names[1]||'玩家二'}`:
+          (network.connected.every(Boolean)?'對手已加入，雙方按準備開始':`等待對手加入…（代碼 ${network.code}）`);
+        $('start').textContent=network.spectating?'觀戰中':'房主開始對戰';
+        $('start').disabled=network.spectating||network.owner!==0||!network.connected.every(Boolean)||!network.ready.every(Boolean);
+        $('overlay-note').textContent=network.spectating?'觀戰無法操作':'準備好後按「我準備好了」';
+        $('match-status').textContent=network.spectating?'觀戰中':lobbyStatus();
       } else if(over) {
-        $('start').textContent=network.owner===0?'再戰 / 重新準備':'等待房主開啟新對局';
-        $('start').disabled=network.owner!==0;
-        $('overlay-note').textContent='再戰需雙方重新準備';
+        const names=network.names||[];
+        if(names[game.winner]) $('overlay-title').textContent=`${names[game.winner]} 獲勝！`;
+        $('start').textContent=network.spectating?'觀戰中':(network.owner===0?'再戰 / 重新準備':'等待房主開啟新對局');
+        $('start').disabled=network.spectating||network.owner!==0;
+        $('overlay-note').textContent=network.spectating?'觀戰無法操作':'再戰需雙方重新準備';
+      } else if(network.spectating) {
+        $('start').textContent='觀戰中';$('start').disabled=true;
       }
     }
   }
@@ -273,20 +490,25 @@
   document.querySelectorAll('input[name="difficulty"]').forEach(input=>input.addEventListener('change',()=>{
     FlipAI?.saveDifficulty(selectedDifficulty());previousState='';render();
   }));
-  const keys={ArrowLeft:[0,'left'],ArrowRight:[0,'right'],ArrowUp:[0,'rotate'],ArrowDown:[0,'soft'],Enter:[0,'drop'],KeyA:[1,'left'],KeyD:[1,'right'],KeyW:[1,'rotate'],KeyS:[1,'soft'],Space:[1,'drop']};
+  document.querySelectorAll('input[name="scheme"]').forEach(input=>input.addEventListener('change',()=>{
+    saveScheme(selectedScheme());syncControlGuide();previousState='';render();
+  }));
   document.addEventListener('keydown',event=>{
     if(event.code==='Escape') {if(!event.repeat) togglePause();return;}
-    const binding=keys[event.code];
+    const binding=controlMap()[event.code];
     if(!binding||game.state!=='playing'||event.ctrlKey||event.metaKey||event.altKey) return;
     if(playMode==='ai'&&!network.active&&binding[0]===1) return;
-    // Keep ordinary keyboard activation for focused UI buttons.
-    if(event.target.closest('button,input,a')) return;
+    if(event.target?.closest?.('button,input,a')) return;
     event.preventDefault();
     if(event.repeat) return;
     held.add(event.code);
     action(network.active?network.owner:binding[0],binding[1]);
   });
-  document.addEventListener('keyup',event=>{held.delete(event.code);if(['ArrowDown','KeyS'].includes(event.code)) sendSoft(false);});
+  document.addEventListener('keyup',event=>{
+    held.delete(event.code);
+    const binding=controlMap()[event.code];
+    if(binding?.[1]==='soft'||event.code==='KeyS'||event.code==='ArrowDown') sendSoft(false);
+  });
   document.querySelectorAll('.touch-controls button').forEach(button=>{
     button.addEventListener('pointerdown',event=>{
       if(game.state!=='playing'||!owns(Number(button.dataset.owner))) return;
@@ -298,14 +520,70 @@
     button.addEventListener('pointerup',release);button.addEventListener('pointercancel',release);button.addEventListener('lostpointercapture',release);
     button.addEventListener('click',event=>{if(event.detail===0) {const owner=Number(button.dataset.owner);action(owner,button.dataset.action==='soft'?'step':button.dataset.action);render();}});
   });
-  function autoPause() {clearInput();if(game.state==='playing') {if(network.active) network.send({type:'pause'});else game.pause();render();}}
+  const GESTURE_KEY='flip-blocks-seen-gestures';
+  function isPhoneWidth() {return window.matchMedia('(max-width: 768px)').matches;}
+  function gestureOwner() {
+    if(network.spectating) return null;
+    if(network.active) return network.owner;
+    return 0;
+  }
+  function cellWidth() {return board.clientWidth/10||24;}
+  function maybeShowGestureCoach() {
+    if(gestureCoachOn||!isPhoneWidth()||$('play-stage').hidden) return;
+    try {if(localStorage.getItem(GESTURE_KEY)) return;} catch {}
+    gestureCoachOn=true;
+    $('gesture-coach').hidden=false;
+  }
+  function dismissGestureCoach() {
+    if($('gesture-coach').hidden&&!gestureCoachOn) return;
+    gestureCoachOn=false;
+    $('gesture-coach').hidden=true;
+    try {localStorage.setItem(GESTURE_KEY,'1');} catch {}
+  }
+  $('gesture-coach').addEventListener('pointerdown',event=>{event.preventDefault();dismissGestureCoach();});
+  function onBoardGesture(event) {
+    if(game.state!=='playing'||gestureCoachOn||event.pointerType==='mouse') return;
+    const owner=gestureOwner();
+    if(owner===null||!owns(owner)) return;
+    event.preventDefault();
+    try {board.setPointerCapture(event.pointerId);} catch {}
+    gesture={id:event.pointerId,owner,x:event.clientX,y:event.clientY,t:performance.now(),cells:0,soft:false,moved:false};
+  }
+  function moveBoardGesture(event) {
+    if(!gesture||event.pointerId!==gesture.id) return;
+    event.preventDefault();
+    const size=cellWidth(), dx=event.clientX-gesture.x, dy=event.clientY-gesture.y;
+    if(Math.abs(dx)>=10||Math.abs(dy)>=10) gesture.moved=true;
+    const next=Math.round(dx/size);
+    while(gesture.cells<next) {action(gesture.owner,'right');gesture.cells++;}
+    while(gesture.cells>next) {action(gesture.owner,'left');gesture.cells--;}
+    if(dy>size*0.55&&dy>=Math.abs(dx)) gesture.soft=true;
+    else if(dy<size*0.25) gesture.soft=false;
+  }
+  function endBoardGesture(event) {
+    if(!gesture||event.pointerId!==gesture.id) return;
+    const dx=event.clientX-gesture.x, dy=event.clientY-gesture.y, dt=performance.now()-gesture.t, owner=gesture.owner, moved=gesture.moved;
+    gesture=null;sendSoft(false);
+    if(!moved&&dt<400) {action(owner,'rotate');return;}
+    if(dy>32&&dt<220&&dy>Math.abs(dx)*1.15) action(owner,'drop');
+  }
+  board.addEventListener('pointerdown',onBoardGesture);
+  board.addEventListener('pointermove',moveBoardGesture);
+  board.addEventListener('pointerup',endBoardGesture);
+  board.addEventListener('pointercancel',endBoardGesture);
+  board.addEventListener('lostpointercapture',endBoardGesture);
+  board.addEventListener('touchmove',event=>{if(game.state==='playing') event.preventDefault();},{passive:false});
+  function autoPause() {if(network.spectating) return;clearInput();if(game.state==='playing') {if(network.active) network.send({type:'pause'});else game.pause();render();}}
   window.addEventListener('blur',autoPause);
   document.addEventListener('visibilitychange',()=>{if(document.hidden) autoPause();});
   const repeats=new Map();
   function frame(time) {
     const dt=lastTime?Math.min((time-lastTime)/1000,.1):0;lastTime=time;
-    const fast=[held.has('ArrowDown'),held.has('KeyS')];
-    for(const [code,binding] of Object.entries(keys)) {
+    document.body.classList.toggle('match-playing',game.state==='playing'&&!$('play-stage').hidden);
+    const map=controlMap();
+    const fast=[false,false];
+    for(const [code,binding] of Object.entries(map)) if(held.has(code)&&binding[1]==='soft') fast[binding[0]]=true;
+    for(const [code,binding] of Object.entries(map)) {
       if(!held.has(code)) {repeats.delete(code);continue;}
       if(!['left','right'].includes(binding[1])) continue;
       const age=(repeats.get(code)||0)+dt, before=repeats.get(code)||0;
@@ -317,17 +595,17 @@
       if(hold.type==='soft') fast[hold.owner]=true;
       if(['left','right'].includes(hold.type)&&hold.age>.22&&hold.repeat>=.09) {hold.repeat=0;action(hold.owner,hold.type);}
     }
+    if(gesture?.soft) fast[gesture.owner]=true;
     if(game.state==='playing') {
       if(network.active) sendSoft(fast.some(Boolean));
-      else {
+      else if(!gestureCoachOn) {
         if(ai) ai.tick(dt);
-        if(game.state==='playing') game.tick(dt,playMode==='ai'?[fast[0],false]:fast);
+        if(game.state==='playing') tickLocal(dt,fast);
         render();
       }
     }
     requestAnimationFrame(frame);
   }
-  // Optional agent controls use the same actions as the visible game.
   const context=document.modelContext;
   if(context?.registerTool) {
     const lifecycle=new AbortController();
@@ -344,13 +622,60 @@
   window.addEventListener('pagehide',()=>network.disconnect());
   $('mute').addEventListener('click',()=>{FlipAudio?.setMuted(!FlipAudio.isMuted());syncMute();});
   document.addEventListener('pointerdown',()=>FlipAudio?.unlock(),{once:true});
+  const HINT_KEY='flip-blocks-seen-start-hint';
+  function showStartHint() {
+    const hint=$('start-hint');
+    if(!hint) return;
+    try {if(localStorage.getItem(HINT_KEY)) {hint.hidden=true;return;}} catch {}
+    hint.hidden=false;
+  }
+  $('dismiss-start-hint')?.addEventListener('click',()=>{
+    try {localStorage.setItem(HINT_KEY,'1');} catch {}
+    $('start-hint').hidden=true;
+  });
+  showStartHint();
   const savedDiff=FlipAI?.loadDifficulty();
   if(savedDiff) {
     const radio=document.querySelector(`input[name="difficulty"][value="${savedDiff}"]`);
     if(radio) radio.checked=true;
   }
+  const savedScheme=loadScheme();
+  const schemeRadio=document.querySelector(`input[name="scheme"][value="${savedScheme}"]`);
+  if(schemeRadio) schemeRadio.checked=true;
+  syncControlGuide();
+  const savedName=FlipNetwork.loadName();
+  if(savedName) $('nickname').value=savedName;
+  async function refreshLeaderboard() {
+    if(!['http:','https:'].includes(location.protocol)) return;
+    try {
+      const data=await (await fetch('/leaderboard')).json();
+      const list=$('leaderboard-list');
+      list.textContent='';
+      if(!data.rankings?.length) {const empty=document.createElement('li');empty.className='muted';empty.textContent='尚無連線對局紀錄';list.append(empty);return;}
+      for(const row of data.rankings) {
+        const item=document.createElement('li');
+        item.textContent=`${row.name} · ${row.wins} 勝`;
+        list.append(item);
+      }
+    } catch {}
+  }
+  $('leaderboard-panel').addEventListener('toggle',()=>{if($('leaderboard-panel').open) refreshLeaderboard();});
+  window.addEventListener('resize',layoutPlayfield);
+  window.matchMedia('(max-width: 768px)').addEventListener('change',layoutPlayfield);
+  layoutPlayfield();
   syncMute();syncModeUi();refreshRecord();
   render();requestAnimationFrame(frame);
-  const joining=new URLSearchParams(location.search).get('join')==='1';
-  if(!(['http:','https:'].includes(location.protocol)&&network.resumeSession())&&joining) connect('guest');
+  const params=new URLSearchParams(location.search);
+  const roomParam=FlipNetwork.parseCode(params.get('room')||'');
+  const watchParam=FlipNetwork.parseCode(params.get('watch')||'');
+  if(roomParam) $('room-code-input').value=roomParam;
+  else if(watchParam) $('room-code-input').value=watchParam;
+  const deepLink=Boolean(roomParam||watchParam);
+  const resumed=!deepLink&&['http:','https:'].includes(location.protocol)&&network.resumeSession();
+  if(resumed) enterMode('online');
+  else if(deepLink) {
+    enterMode('online');
+    network.message=watchParam&&!roomParam?'代碼已填入。輸入暱稱後按「以觀戰加入」。':'代碼已填入。輸入暱稱後按「加入房間」。';
+    networkChanged();
+  }
 })();

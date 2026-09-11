@@ -58,6 +58,8 @@ sysinfo.txt
 .env.*
 !.env.example
 !.env.sample
+*.local.yml
+*.local.yaml
 *.keystore
 *.jks
 *.p12
@@ -68,6 +70,7 @@ id_rsa
 id_ed25519
 
 # Operating-system files and editor backups.
+/data/
 node_modules/
 .pnpm-store/
 .DS_Store

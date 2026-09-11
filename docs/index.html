@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
   <meta name="theme-color" content="#101413">
-  <meta name="description" content="翻轉方塊 Flip Blocks：同機雙人、單人對戰 AI 與連線對戰。推進、包圍、翻轉，率先佔領 70% 棋盤。">
+  <meta name="description" content="翻轉方塊 Flip Blocks：同機雙人、單人對戰 AI 與線上對戰。推進、包圍、翻轉，率先佔領 70% 棋盤。">
   <title>翻轉方塊 · Flip Blocks</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./style.css">
@@ -15,66 +15,152 @@
   <script src="./session-record.js" defer></script>
   <script src="./game.js" defer></script>
 </head>
-<body>
+<body class="stage-pick">
   <header class="topbar">
     <a class="brand" href="./" aria-label="翻轉方塊首頁"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>FLIP BLOCKS<span class="brand-zh">翻轉方塊</span></a>
-    <span class="mode"><span></span><b id="mode-label">同機雙人對戰</b></span>
+    <span class="mode"><span></span><b id="mode-label">選擇模式</b></span>
   </header>
   <main>
-    <div class="match-heading"><div><p class="eyebrow">THE TERRITORY IS YOURS TO TAKE</p><h1>每一塊，都能翻盤。</h1></div><div class="match-actions"><span id="clock" class="clock">00:00</span><button id="mute" class="quiet" type="button" aria-pressed="false">音效開</button><button id="pause" class="quiet" disabled>暫停 <kbd>Esc</kbd></button><button id="restart" class="quiet" disabled>新對局 ↗</button></div></div>
-    <details class="network-panel" id="network-panel">
-      <summary>區域網路 / IP 連線對戰 <span>跨裝置一起玩 ↗</span></summary>
-      <div class="network-content">
-        <p>房主先在電腦執行 <code>npm install</code>、<code>npm start</code>，開啟終端機顯示的網址建立房間。朋友連上同一 Wi-Fi，輸入房主的 IP 即可加入。</p>
-        <form id="join-form" class="network-address"><label for="server-address">主機 IP / 位址</label><input id="server-address" type="text" placeholder="192.168.1.20:8787" autocomplete="off" spellcheck="false" required><button class="quiet" id="join-ip" type="submit">輸入 IP 加入</button></form>
-        <div class="network-actions"><button class="quiet" id="host" type="button">建立房間（玩家一）</button><button class="quiet" id="join" type="button">加入此主機（玩家二）</button><button class="quiet" id="ready" type="button" hidden>準備</button><button class="quiet" id="leave" type="button" hidden>離開連線 / 同機模式</button></div>
-        <p id="session-record" class="session-record">本機戰績 玩家一 0 勝 · 玩家二 0 勝</p>
-        <p id="network-status" role="status">尚未連線。每個主機提供一間雙人房。</p>
-        <p class="network-hint">連線時，方向鍵或 WASD 都可操作自己，Enter / Space 落定。雙方準備後由房主開始；換色及再戰需重新準備。對局中斷線可在 60 秒內自動重連。</p>
+    <div class="match-heading">
+      <div class="match-title">
+        <p class="eyebrow">THE TERRITORY IS YOURS TO TAKE</p>
+        <h1>每一塊，都能翻盤。</h1>
       </div>
-    </details>
-    <div class="arena">
-      <section class="player player-one" aria-labelledby="p1-heading">
-        <div class="player-top"><span class="player-tag">PLAYER 01</span><span class="player-dot"></span></div>
-        <h2 id="p1-heading">玩家一 <span id="p1-color">黑方 ↓</span></h2>
-        <div class="score"><strong id="p1-score">50</strong><span>% 佔領</span></div>
-        <div class="mini-meter"><i id="p1-meter"></i><span></span></div>
-        <p class="target">勝利目標 <b>70%</b></p>
-        <div class="next-panel"><h3>接下來 <span>NEXT</span></h3><div class="previews" id="p1-next"></div></div>
-        <div class="control-guide"><h3>操作方式</h3><p><span>左右移動</span><span><kbd>←</kbd> <kbd>→</kbd></span></p><p><span>旋轉 / 加速</span><span><kbd>↑</kbd> <kbd>↓</kbd></span></p><p><span>直接落定</span><kbd>Enter</kbd></p></div>
-        <div class="touch-controls" aria-label="玩家一觸控操作"><button data-owner="0" data-action="left" aria-label="玩家一向左">←</button><button data-owner="0" data-action="rotate" aria-label="玩家一旋轉">↻</button><button data-owner="0" data-action="right" aria-label="玩家一向右">→</button><button data-owner="0" data-action="soft" aria-label="玩家一加速">加速</button><button class="drop" data-owner="0" data-action="drop">落定 ↓</button></div>
-        <p class="piece-count">已落定 <b id="p1-locked">0</b> 塊</p>
-      </section>
-      <section class="board-section" aria-label="對戰棋盤">
-        <div class="board-label"><span>白方基地</span><span>10 × 20</span></div>
-        <div class="board-frame">
-          <div id="board" tabindex="-1" role="img" aria-label="10 欄 20 列棋盤，黑白各佔一半"></div>
-          <div id="overlay" class="overlay"><div class="overlay-card">
-            <div class="small-mark" aria-hidden="true">◧</div><p id="overlay-kicker" class="eyebrow">READY TO FLIP?</p><h2 id="overlay-title">準備好翻轉戰局？</h2><p id="overlay-description">兩位玩家，共用一個棋盤。<br>用方塊搶下你的領地。</p>
-            <fieldset id="mode-picker"><legend>對戰模式</legend><label><input type="radio" name="mode" value="local" checked><span>同機雙人</span></label><label><input type="radio" name="mode" value="ai"><span>單人對戰 AI</span></label></fieldset>
-            <fieldset id="difficulty-picker" hidden><legend>AI 難度</legend><label><input type="radio" name="difficulty" value="easy"><span>簡單</span></label><label><input type="radio" name="difficulty" value="normal" checked><span>普通</span></label><label><input type="radio" name="difficulty" value="hard"><span>困難</span></label></fieldset>
-            <fieldset id="color-picker"><legend>玩家一選擇顏色</legend><label><input type="radio" name="color" value="1" checked><span>● 黑方 ↓</span></label><label><input type="radio" name="color" value="2"><span>○ 白方 ↑</span></label></fieldset>
-            <button id="start" class="primary">開始對戰 <span>↗</span></button><p class="overlay-note" id="overlay-note">請兩位玩家就位</p>
-          </div></div>
+      <div class="match-actions">
+        <button id="back-modes" class="quiet" type="button" hidden>返回</button>
+        <span id="clock" class="clock">00:00</span>
+        <button id="mute" class="quiet" type="button" aria-pressed="false">音效開</button>
+        <button id="pause" class="quiet" disabled>暫停 <kbd>Esc</kbd></button>
+        <button id="restart" class="quiet" disabled>新對局 ↗</button>
+      </div>
+    </div>
+    <section id="mode-home" class="mode-home" aria-label="選擇對戰模式">
+      <p class="mode-home-lead">選一種方式開始。</p>
+      <p id="start-hint" class="start-hint" hidden>
+        <span>第一次玩?建議從『單人對戰 AI · 新手』開始</span>
+        <button type="button" id="dismiss-start-hint" class="text-link">知道了</button>
+      </p>
+      <div class="mode-cards">
+        <button type="button" class="mode-card" id="pick-ai">
+          <strong>單人對戰 AI</strong>
+          <span>馬上開玩，選難度與顏色後直接開局</span>
+        </button>
+        <button type="button" class="mode-card" id="pick-local">
+          <strong>同機雙人</strong>
+          <span>兩人共用鍵盤，方向鍵與 WASD</span>
+        </button>
+        <button type="button" class="mode-card" id="pick-online">
+          <strong>線上對戰</strong>
+          <span>建立房間，或輸入 6 位代碼加入</span>
+        </button>
+      </div>
+    </section>
+    <div id="play-stage" hidden>
+      <section class="online-panel" id="online-panel" hidden>
+        <h2 class="online-heading">線上對戰</h2>
+        <p class="online-lead">先輸入暱稱，再建立房間或加入朋友的房間。</p>
+        <div class="network-address"><label for="nickname">暱稱</label><input id="nickname" type="text" maxlength="12" minlength="2" placeholder="2–12 個字" autocomplete="nickname" spellcheck="false"></div>
+        <div class="online-actions">
+          <button class="host-btn" id="host" type="button">建立房間</button>
+          <div class="join-row">
+            <label for="room-code-input">房間代碼</label>
+            <input id="room-code-input" type="text" maxlength="6" placeholder="ABC123" autocomplete="off" spellcheck="false" autocapitalize="characters" inputmode="text">
+            <button class="quiet" id="join" type="button">加入房間</button>
+          </div>
+          <p class="spectate-line"><button class="text-link" id="spectate" type="button">以觀戰加入</button></p>
         </div>
-        <div class="board-label bottom-label"><span>黑方基地</span><span id="match-status" role="status">等待開始</span></div>
-        <div class="territory" aria-label="雙方佔領比例"><i id="territory-black"></i><i id="territory-white"></i><span class="threshold t30"></span><span class="threshold t70"></span></div>
+        <div id="room-share" hidden>
+          <p class="room-code-label">房間代碼</p>
+          <p id="room-code-display" class="room-code-hero"></p>
+          <div class="share-actions">
+            <button class="quiet" id="copy-code" type="button">複製代碼</button>
+            <button class="quiet" id="copy-link" type="button">分享連結</button>
+          </div>
+        </div>
+        <div class="network-actions">
+          <button class="quiet" id="ready" type="button" hidden>我準備好了</button>
+          <button class="quiet" id="leave" type="button" hidden>離開房間</button>
+        </div>
+        <p id="watchers" class="session-record" hidden>觀戰 0 人</p>
+        <p id="network-status" role="status">輸入暱稱後，建立房間或加入朋友的房間。</p>
+        <details class="leaderboard-panel" id="leaderboard-panel"><summary>匿名排行榜 <span>勝場前 20</span></summary><ol id="leaderboard-list"><li class="muted">尚無連線對局紀錄</li></ol></details>
+        <details class="advanced-host" id="advanced-host">
+          <summary>進階：自架主機</summary>
+          <form id="join-form" class="network-address">
+            <label for="server-address">主機 IP / 位址</label>
+            <input id="server-address" type="text" placeholder="192.168.1.20:8787" autocomplete="off" spellcheck="false">
+            <button class="quiet" id="join-ip" type="submit">前往主機</button>
+          </form>
+          <p class="network-hint">只有要連到別人電腦上的主機時才需要填。一般遊玩會自動使用目前網址。</p>
+        </details>
       </section>
-      <section class="player player-two" aria-labelledby="p2-heading">
-        <div class="player-top"><span class="player-tag">PLAYER 02</span><span class="player-dot"></span></div>
-        <h2 id="p2-heading">玩家二 <span id="p2-color">白方 ↑</span></h2>
-        <div class="score"><strong id="p2-score">50</strong><span>% 佔領</span></div>
-        <div class="mini-meter"><i id="p2-meter"></i><span></span></div>
-        <p class="target">勝利目標 <b>70%</b></p>
-        <div class="next-panel"><h3>接下來 <span>NEXT</span></h3><div class="previews" id="p2-next"></div></div>
-        <div class="control-guide"><h3>操作方式</h3><p><span>左右移動</span><span><kbd>A</kbd> <kbd>D</kbd></span></p><p><span>旋轉 / 加速</span><span><kbd>W</kbd> <kbd>S</kbd></span></p><p><span>直接落定</span><kbd>Space</kbd></p></div>
-        <div class="touch-controls" aria-label="玩家二觸控操作"><button data-owner="1" data-action="left" aria-label="玩家二向左">←</button><button data-owner="1" data-action="rotate" aria-label="玩家二旋轉">↻</button><button data-owner="1" data-action="right" aria-label="玩家二向右">→</button><button data-owner="1" data-action="soft" aria-label="玩家二加速">加速</button><button class="drop" data-owner="1" data-action="drop">落定 ↑</button></div>
-        <p class="piece-count">已落定 <b id="p2-locked">0</b> 塊</p>
-      </section>
+      <p id="session-record" class="session-record">本機戰績 玩家一 0 勝 · 玩家二 0 勝</p>
+      <div class="arena">
+        <section class="player player-two" aria-labelledby="p2-heading">
+          <div class="player-top"><span class="player-tag">PLAYER 02</span><span class="player-dot"></span></div>
+          <h2 id="p2-heading"><span id="p2-name">玩家二</span> <span id="p2-color">白方 ↑</span></h2>
+          <div class="score"><strong id="p2-score">50</strong><span>% 佔領</span></div>
+          <div class="mini-meter"><i id="p2-meter"></i><span></span></div>
+          <p class="target">勝利目標 <b>70%</b></p>
+          <div class="next-panel"><h3>接下來 <span>NEXT</span></h3><div class="previews" id="p2-next"></div></div>
+          <p class="piece-count">已落定 <b id="p2-locked">0</b> 塊</p>
+        </section>
+        <section class="board-section" aria-label="對戰棋盤">
+          <div class="board-label"><span>白方基地</span><span>10 × 20</span></div>
+          <div class="board-slot">
+          <div class="board-frame">
+            <div id="board" tabindex="-1" role="img" aria-label="10 欄 20 列棋盤，黑白各佔一半"></div>
+            <div id="overlay" class="overlay"><div class="overlay-card">
+              <div class="small-mark" aria-hidden="true">◧</div><p id="overlay-kicker" class="eyebrow">READY TO FLIP?</p><h2 id="overlay-title">準備好翻轉戰局？</h2><p id="overlay-description">兩位玩家，共用一個棋盤。<br>用方塊搶下你的領地。</p>
+              <fieldset id="mode-picker" hidden><legend>對戰模式</legend><label><input type="radio" name="mode" value="local" checked><span>同機雙人</span></label><label><input type="radio" name="mode" value="ai"><span>單人對戰 AI</span></label></fieldset>
+              <fieldset id="difficulty-picker" hidden><legend>AI 難度</legend><label><input type="radio" name="difficulty" value="novice"><span>新手</span></label><label><input type="radio" name="difficulty" value="easy"><span>簡單</span></label><label><input type="radio" name="difficulty" value="normal" checked><span>普通</span></label><label><input type="radio" name="difficulty" value="hard"><span>困難</span></label></fieldset>
+              <fieldset id="color-picker"><legend>玩家一選擇顏色</legend><label><input type="radio" name="color" value="1" checked><span>● 黑方 ↓</span></label><label><input type="radio" name="color" value="2"><span>○ 白方 ↑</span></label></fieldset>
+              <fieldset id="scheme-picker"><legend>操作方案</legend><label><input type="radio" name="scheme" value="classic" checked><span>經典</span></label><label><input type="radio" name="scheme" value="alternate"><span>替代</span></label></fieldset>
+              <button id="start" class="primary">開始對戰 <span>↗</span></button><p class="overlay-note" id="overlay-note">請兩位玩家就位</p>
+            </div></div>
+          </div>
+          </div>
+          <div class="board-label bottom-label"><span>黑方基地</span><span id="match-status" role="status">等待開始</span></div>
+          <div class="territory" aria-label="雙方佔領比例"><i id="territory-black"></i><i id="territory-white"></i><span class="threshold t30"></span><span class="threshold t70"></span></div>
+        </section>
+        <section class="player player-one" aria-labelledby="p1-heading">
+          <div class="player-top"><span class="player-tag">PLAYER 01</span><span class="player-dot"></span></div>
+          <h2 id="p1-heading"><span id="p1-name">玩家一</span> <span id="p1-color">黑方 ↓</span></h2>
+          <div class="score"><strong id="p1-score">50</strong><span>% 佔領</span></div>
+          <div class="mini-meter"><i id="p1-meter"></i><span></span></div>
+          <p class="target">勝利目標 <b>70%</b></p>
+          <div class="next-panel"><h3>接下來 <span>NEXT</span></h3><div class="previews" id="p1-next"></div></div>
+          <p class="piece-count">已落定 <b id="p1-locked">0</b> 塊</p>
+        </section>
+        <div class="touch-dock">
+          <div class="touch-controls" aria-label="玩家二觸控操作"><button data-owner="1" data-action="left" aria-label="玩家二向左">←</button><button data-owner="1" data-action="rotate" aria-label="玩家二旋轉">↻</button><button data-owner="1" data-action="right" aria-label="玩家二向右">→</button><button data-owner="1" data-action="soft" aria-label="玩家二加速">加速</button><button class="drop" data-owner="1" data-action="drop">落定 ↑</button></div>
+          <div class="touch-controls" aria-label="玩家一觸控操作"><button data-owner="0" data-action="left" aria-label="玩家一向左">←</button><button data-owner="0" data-action="rotate" aria-label="玩家一旋轉">↻</button><button data-owner="0" data-action="right" aria-label="玩家一向右">→</button><button data-owner="0" data-action="soft" aria-label="玩家一加速">加速</button><button class="drop" data-owner="0" data-action="drop">落定 ↓</button></div>
+        </div>
+      </div>
+      <details class="controls-help" id="controls-help">
+        <summary>操作說明</summary>
+        <div class="control-guides">
+          <div class="control-guide" id="p1-guide"><h3>玩家一</h3><div id="p1-binds"><p><span>左右移動</span><span><kbd>←</kbd> <kbd>→</kbd></span></p><p><span>旋轉 / 加速</span><span><kbd>↑</kbd> <kbd>↓</kbd></span></p><p><span>直接落定</span><kbd>Enter</kbd></p></div></div>
+          <div class="control-guide" id="p2-guide"><h3>操作方式</h3><p><span>左右移動</span><span><kbd>A</kbd> <kbd>D</kbd></span></p><p><span>旋轉 / 加速</span><span><kbd>W</kbd> <kbd>S</kbd></span></p><p><span>直接落定</span><kbd>Space</kbd></p></div>
+        </div>
+      </details>
+      <div id="gesture-coach" class="gesture-coach" hidden>
+        <div class="gesture-coach-card">
+          <p class="gesture-coach-title">手機手勢</p>
+          <ul>
+            <li><i class="g-icon g-swipe" aria-hidden="true"></i><span>左右滑動，移動方塊</span></li>
+            <li><i class="g-icon g-tap" aria-hidden="true"></i><span>輕觸棋盤，旋轉一次</span></li>
+            <li><i class="g-icon g-down" aria-hidden="true"></i><span>快滑落定，慢拉加速</span></li>
+          </ul>
+          <p class="gesture-coach-dismiss">點任意處關閉</p>
+        </div>
+      </div>
     </div>
     <section class="rules" aria-labelledby="rules-heading"><h2 id="rules-heading">遊戲規則 <span>HOW TO PLAY</span></h2><div class="rule-grid"><article><b>01</b><div><h3>推進領地</h3><p>黑方往下、白方往上。碰到己方領地時落定，將方塊所在格子翻成自己的顏色。</p></div></article><article><b>02</b><div><h3>切斷，然後翻轉</h3><p>切斷敵方與基地的連結，整片孤立領地就會翻色。只有上下左右相連才算連結。</p></div></article><article><b>03</b><div><h3>拿下 70%</h3><p>率先佔領 70% 棋盤即獲勝；若你的顏色出現在全部 20 列，也能直接取勝。</p></div></article></div></section>
   </main>
-  <footer><span>FLIP BLOCKS <span class="muted">/ 翻轉方塊</span></span><span>兩個方向，一場領地爭奪。</span></footer>
+  <footer class="site-credit">
+    <span>FLIP BLOCKS · 基於 <a>xuan</a> 的想法 · 由 <a href="https://github.com/yuxzs" target="_blank" rel="noopener">yuxzs</a> 所做的原作</span><span class="site-credit-sep"> · </span><span>再由 <a href="https://github.com/luancs11" target="_blank" rel="noopener">Lu-An Chen</a> @ <a href="https://github.com/NYCU-Police/Flip-Blocks" target="_blank" rel="noopener">NYCU-Police</a> 接續開發及部署 · <a href="https://github.com/NYCU-Police/Flip-Blocks" target="_blank" rel="noopener">GitHub</a></span>
+  </footer>
   <noscript>請開啟瀏覽器的 JavaScript 才能遊玩翻轉方塊。</noscript>
 </body>
 </html>

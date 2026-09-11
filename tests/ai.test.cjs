@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { Game, cells, inBounds, SHAPES } = require('../docs/game-core.js');
-const { listPlacements, evaluatePlacement, chooseMove, enact, cloneGame } = require('../docs/ai.js');
+const { listPlacements, evaluatePlacement, chooseMove, enact, cloneGame, DIFFICULTIES, loadDifficulty, saveDifficulty } = require('../docs/ai.js');
 
 const FLIP = {
   flip: 10, paint: 0, win: 1000, lose: -1000,
@@ -100,6 +100,43 @@ test('hard two-step look-ahead beats greedy one-step on a setup board', () => {
   const totalGreedy = greedyNow.flips + evaluatePlacement(afterGreedy, 1, nextGreedy, { weights: FLIP, lookAhead: 1 }).flips;
   const totalPlan = planNow.flips + evaluatePlacement(afterPlan, 1, nextPlan, { weights: FLIP, lookAhead: 1 }).flips;
   assert.ok(totalPlan > totalGreedy, `two-step ${totalPlan} should beat one-step ${totalGreedy}`);
+});
+
+test('novice is leakier than easy and often takes the second-best landing', () => {
+  assert.ok(DIFFICULTIES.novice.noise > DIFFICULTIES.easy.noise);
+  assert.ok(DIFFICULTIES.novice.secondBest > DIFFICULTIES.easy.secondBest);
+  assert.ok(DIFFICULTIES.novice.moveMs > DIFFICULTIES.easy.moveMs);
+  assert.equal(DIFFICULTIES.novice.dropScale, 0.7);
+  assert.equal(DIFFICULTIES.easy.dropScale, 0.7);
+  assert.equal(DIFFICULTIES.normal.dropScale, 1);
+  assert.equal(DIFFICULTIES.hard.dropScale, 1);
+  const store = {
+    data: {},
+    getItem(key) { return Object.prototype.hasOwnProperty.call(this.data, key) ? this.data[key] : null; },
+    setItem(key, value) { this.data[key] = value; }
+  };
+  assert.equal(loadDifficulty(store), 'normal');
+  assert.equal(saveDifficulty('novice', store), 'novice');
+  assert.equal(loadDifficulty(store), 'novice');
+
+  const game = new Game(() => 0);
+  game.reset(1);
+  fill(game, 2);
+  for (let y = 0; y <= 4; y++) game.board[y].fill(1);
+  game.board[5].fill(2);
+  game.board[5][4] = 1;
+  for (const y of [6, 7, 8]) {
+    game.board[y].fill(2);
+    game.board[y][3] = 1;
+    game.board[y][4] = 1;
+    game.board[y][5] = 1;
+  }
+  whitePiece(game, 'I', ['T', 'L', 'J']);
+  const best = chooseMove(game, 1, 'normal', { weights: FLIP, lookAhead: 1, random: () => 0 });
+  const novice = chooseMove(game, 1, 'novice', { weights: FLIP, lookAhead: 1, random: () => 0 });
+  assert.ok(best);
+  assert.ok(novice);
+  assert.ok(best.x !== novice.x || best.rot !== novice.rot, 'novice should skip the top-ranked landing');
 });
 
 test('an AI match can be fast-forwarded from kickoff to a winner', () => {
