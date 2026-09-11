@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {Game,SHAPES,cells,inBounds}=require('../docs/game-core.js');
+const {Game,SHAPES,cells,inBounds,acceptBoardPointer}=require('../docs/game-core.js');
 
 test('both color choices start 50/50, with each color connected to its own home',()=>{
   for(const color of [1,2]) {
@@ -110,4 +110,25 @@ test('seeded random matches preserve territory and always terminate each move',(
     }
     assert.equal(game.state,'over');
   }
+});
+test('second finger cannot steal or finish a board gesture',()=>{
+  let gesture=null;
+  function down(id) {
+    if(!acceptBoardPointer(gesture,id,true)) return 'ignored';
+    gesture={id};
+    return 'started';
+  }
+  function up(id) {
+    if(!acceptBoardPointer(gesture,id,false)) return 'ignored';
+    const ended=gesture;
+    gesture=null;
+    return ended.id;
+  }
+  assert.equal(down(1),'started');
+  assert.equal(down(2),'ignored');
+  assert.equal(up(2),'ignored');
+  assert.equal(gesture.id,1);
+  assert.equal(up(1),1);
+  assert.equal(gesture,null);
+  assert.equal(acceptBoardPointer(null,2,false),false);
 });

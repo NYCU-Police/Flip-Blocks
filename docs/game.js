@@ -412,7 +412,7 @@
     $('mode-picker').hidden=true;
     $('difficulty-picker').hidden=!ready||waiting||restoring||network.active||playMode!=='ai';
     $('scheme-picker').hidden=waiting||restoring||network.spectating;
-    $('pause').disabled=ready||over||waiting||restoring||network.spectating||$('play-stage').hidden;$('restart').disabled=ready||waiting||restoring||network.spectating||$('play-stage').hidden||(network.active&&network.owner!==0);
+    $('pause').disabled=ready||over||waiting||restoring||network.spectating||$('play-stage').hidden;$('restart').disabled=ready||waiting||restoring||network.spectating||$('play-stage').hidden||(network.active&&(network.owner!==0||!over));
     $('start').disabled=false;
     document.querySelectorAll('input[name="color"]').forEach(input=>{
       input.disabled=network.active&&network.owner!==0;
@@ -543,6 +543,7 @@
   $('gesture-coach').addEventListener('pointerdown',event=>{event.preventDefault();dismissGestureCoach();});
   function onBoardGesture(event) {
     if(game.state!=='playing'||gestureCoachOn||event.pointerType==='mouse') return;
+    if(!FlipBlocks.acceptBoardPointer(gesture,event.pointerId,true)) return;
     const owner=gestureOwner();
     if(owner===null||!owns(owner)) return;
     event.preventDefault();
@@ -550,7 +551,7 @@
     gesture={id:event.pointerId,owner,x:event.clientX,y:event.clientY,t:performance.now(),cells:0,soft:false,moved:false};
   }
   function moveBoardGesture(event) {
-    if(!gesture||event.pointerId!==gesture.id) return;
+    if(!FlipBlocks.acceptBoardPointer(gesture,event.pointerId,false)) return;
     event.preventDefault();
     const size=cellWidth(), dx=event.clientX-gesture.x, dy=event.clientY-gesture.y;
     if(Math.abs(dx)>=10||Math.abs(dy)>=10) gesture.moved=true;
@@ -561,7 +562,7 @@
     else if(dy<size*0.25) gesture.soft=false;
   }
   function endBoardGesture(event) {
-    if(!gesture||event.pointerId!==gesture.id) return;
+    if(!FlipBlocks.acceptBoardPointer(gesture,event.pointerId,false)) return;
     const dx=event.clientX-gesture.x, dy=event.clientY-gesture.y, dt=performance.now()-gesture.t, owner=gesture.owner, moved=gesture.moved;
     gesture=null;sendSoft(false);
     if(!moved&&dt<400) {action(owner,'rotate');return;}

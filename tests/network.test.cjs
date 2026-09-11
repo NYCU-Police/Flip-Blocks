@@ -142,8 +142,11 @@ test('pause freezes simulation, resume synchronizes, rematch needs new preparati
   assert.equal(resumed.game.elapsed, paused.game.elapsed);
   guest.send({ type: 'restart' }); host.send({ type: 'pause' });
   await host.state(m => m.game.state === 'paused' && m.revision > resumed.revision);
-  host.send({ type: 'restart' }); const reset = await guest.state(m => m.game.state === 'ready' && m.revision > resumed.revision);
-  assert.deepEqual(reset.ready, [false, false]); assert.deepEqual(reset.game.locked, [0, 0]);
+  host.send({ type: 'restart' });
+  await new Promise(resolve => setTimeout(resolve, 80));
+  const stillPaused = host.messages.filter(m => m.type === 'state').at(-1);
+  assert.equal(stillPaused.game.state, 'paused');
+  assert.deepEqual(stillPaused.game.locked, resumed.game.locked);
 });
 
 test('guest leaving the lobby frees the seat; host departure closes room', async t => {

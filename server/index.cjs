@@ -387,6 +387,8 @@ function createServer({
     broadcast(room);
   }
   function forfeitToLobby(room, owner) {
+    const remaining = 1 - owner;
+    if (matchActive(room) && room.names[remaining]) recordOutcome(room, remaining);
     dropToken(room.sessions[owner]);
     room.reconnecting[owner] = null;
     room.sessions[owner] = null;
@@ -567,7 +569,7 @@ function createServer({
         room.game.reset(msg.color); room.game.state = 'ready'; room.ready.fill(false);
       } else if (msg.type === 'start' && owner === 0 && room.game.state === 'ready' && room.players.every(Boolean) && room.ready.every(Boolean)) {
         room.game.reset(room.game.sides[0].color); stopInput(room); beginMatch(room);
-      } else if (msg.type === 'restart' && owner === 0 && room.game.state !== 'ready' && !room.reconnecting.some(Boolean)) {
+      } else if (msg.type === 'restart' && owner === 0 && room.game.state === 'over' && !room.reconnecting.some(Boolean)) {
         room.game.reset(room.game.sides[0].color); room.game.state = 'ready'; room.ready.fill(false); stopInput(room);
         room.matchKey = null; room.recorded = false;
       } else if (msg.type === 'pause' && room.game.state === 'playing') { room.game.pause(); stopInput(room); }

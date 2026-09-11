@@ -103,7 +103,11 @@
       }
     }
   }
-  const api={Game,SHAPES,COLS,ROWS,cells,inBounds};
+  function acceptBoardPointer(gesture, pointerId, starting) {
+    if (starting) return !gesture;
+    return Boolean(gesture && gesture.id === pointerId);
+  }
+  const api={Game,SHAPES,COLS,ROWS,cells,inBounds,acceptBoardPointer};
   if(typeof module!=='undefined'&&module.exports) module.exports=api;
   else root.FlipBlocks=api;
 })(globalThis);
