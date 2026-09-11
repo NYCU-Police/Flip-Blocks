@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const {Game,SHAPES,cells,inBounds}=FlipBlocks;
+  const {Game,SHAPES,cells,inBounds,WIN_PCT,WIN_CELLS}=FlipBlocks;
   const game=new Game(), $=id=>document.getElementById(id);
   const board=$('board'), tiles=[], held=new Set(), pointerHolds=new Map();
   let lastTime=0, previousState='', previousQueues='', previousLocks=0;
@@ -210,7 +210,7 @@
     const n=g.counts()[color-1];
     const score=pct(n);
     const who=color===1?'黑方':'白方';
-    if(n>=140) return {kind:'threshold',text:`${who}佔領 ${score}%，達成 70% 目標！`};
+    if(n>=WIN_CELLS) return {kind:'threshold',text:`${who}佔領 ${score}%，達成 ${WIN_PCT}% 目標！`};
     const allRows=Array.isArray(g.board[0])&&g.board.every(row=>row.includes(color));
     if(allRows) return {kind:'rows',text:`${who}已在全部 20 列現身，以 ${score}% 佔領獲勝`};
     return {kind:'other',text:`對局結束 · ${who}以 ${score}% 佔領獲勝`};
@@ -452,7 +452,7 @@
       $('overlay-description').textContent=`${reason.text}・用時 ${$('clock').textContent}`;
       $('start').innerHTML='再戰一局 <span>↗</span>';
       $('overlay-note').textContent=reason.kind==='rows'
-        ?'己方顏色出現在全部 20 列即可取勝，不必先到 70%。'
+        ?`己方顏色出現在全部 20 列即可取勝，不必先到 ${WIN_PCT}%。`
         :'或按「新對局」重新選色';
       $('match-status').textContent=playMode==='ai'?(winner===0?'你獲勝！':'AI 獲勝！'):`玩家${winner===0?'一':'二'}獲勝！`;
       clearInput();$('start').focus({preventScroll:true});

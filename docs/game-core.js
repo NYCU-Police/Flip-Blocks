@@ -2,6 +2,9 @@
 (function (root) {
   'use strict';
   const COLS = 10, ROWS = 20;
+  // 佔領勝門檻。靜態文案（index.html、README）須與此 WIN_PCT 一致。
+  const WIN_PCT = 75;
+  const WIN_CELLS = Math.round(COLS * ROWS * WIN_PCT / 100);
   const SHAPES = {
     I: [[[0,1],[1,1],[2,1],[3,1]],[[2,0],[2,1],[2,2],[2,3]],[[0,2],[1,2],[2,2],[3,2]],[[1,0],[1,1],[1,2],[1,3]]],
     O: Array.from({length:4}, () => [[1,0],[2,0],[1,1],[2,1]]),
@@ -87,7 +90,7 @@
     checkWinner() {
       const counts=this.counts();
       for(const color of [1,2]) {
-        if(counts[color-1]>=140 || this.board.every(row=>row.includes(color))) {
+        if(counts[color-1]>=WIN_CELLS || this.board.every(row=>row.includes(color))) {
           this.winner=this.sides.findIndex(s=>s.color===color);this.state='over';return;
         }
       }
@@ -107,7 +110,7 @@
     if (starting) return !gesture;
     return Boolean(gesture && gesture.id === pointerId);
   }
-  const api={Game,SHAPES,COLS,ROWS,cells,inBounds,acceptBoardPointer};
+  const api={Game,SHAPES,COLS,ROWS,WIN_PCT,WIN_CELLS,cells,inBounds,acceptBoardPointer};
   if(typeof module!=='undefined'&&module.exports) module.exports=api;
   else root.FlipBlocks=api;
 })(globalThis);

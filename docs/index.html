@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
   <meta name="theme-color" content="#101413">
-  <meta name="description" content="翻轉方塊 Flip Blocks：同機雙人、單人對戰 AI 與線上對戰。推進、包圍、翻轉，率先佔領 70% 棋盤。">
+  <!-- 勝利%與 docs/game-core.js 的 WIN_PCT 一致 -->
+  <meta name="description" content="翻轉方塊 Flip Blocks：同機雙人、單人對戰 AI 與線上對戰。推進、包圍、翻轉，率先佔領 75% 棋盤。">
   <title>翻轉方塊 · Flip Blocks</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./style.css">
@@ -101,7 +102,7 @@
           <h2 id="p2-heading"><span id="p2-name">玩家二</span> <span id="p2-color">白方 ↑</span></h2>
           <div class="score"><strong id="p2-score">50</strong><span>% 佔領</span></div>
           <div class="mini-meter"><i id="p2-meter"></i><span></span></div>
-          <p class="target">勝利目標 <b>70%</b></p>
+          <p class="target">勝利目標 <b>75%</b></p>
           <div class="next-panel"><h3>接下來 <span>NEXT</span></h3><div class="previews" id="p2-next"></div></div>
           <p class="piece-count">已落定 <b id="p2-locked">0</b> 塊</p>
         </section>
@@ -121,14 +122,14 @@
           </div>
           </div>
           <div class="board-label bottom-label"><span>黑方基地</span><span id="match-status" role="status">等待開始</span></div>
-          <div class="territory" aria-label="雙方佔領比例"><i id="territory-black"></i><i id="territory-white"></i><span class="threshold t30"></span><span class="threshold t70"></span></div>
+          <div class="territory" aria-label="雙方佔領比例"><i id="territory-black"></i><i id="territory-white"></i><span class="threshold t30"></span><span class="threshold t75"></span></div>
         </section>
         <section class="player player-one" aria-labelledby="p1-heading">
           <div class="player-top"><span class="player-tag">PLAYER 01</span><span class="player-dot"></span></div>
           <h2 id="p1-heading"><span id="p1-name">玩家一</span> <span id="p1-color">黑方 ↓</span></h2>
           <div class="score"><strong id="p1-score">50</strong><span>% 佔領</span></div>
           <div class="mini-meter"><i id="p1-meter"></i><span></span></div>
-          <p class="target">勝利目標 <b>70%</b></p>
+          <p class="target">勝利目標 <b>75%</b></p>
           <div class="next-panel"><h3>接下來 <span>NEXT</span></h3><div class="previews" id="p1-next"></div></div>
           <p class="piece-count">已落定 <b id="p1-locked">0</b> 塊</p>
         </section>
@@ -156,7 +157,7 @@
         </div>
       </div>
     </div>
-    <section class="rules" aria-labelledby="rules-heading"><h2 id="rules-heading">遊戲規則 <span>HOW TO PLAY</span></h2><div class="rule-grid"><article><b>01</b><div><h3>推進領地</h3><p>黑方往下、白方往上。碰到己方領地時落定，將方塊所在格子翻成自己的顏色。</p></div></article><article><b>02</b><div><h3>切斷，然後翻轉</h3><p>切斷敵方與基地的連結，整片孤立領地就會翻色。只有上下左右相連才算連結。</p></div></article><article><b>03</b><div><h3>拿下 70%</h3><p>率先佔領 70% 棋盤即獲勝；若你的顏色出現在全部 20 列，也能直接取勝。</p></div></article></div></section>
+    <section class="rules" aria-labelledby="rules-heading"><h2 id="rules-heading">遊戲規則 <span>HOW TO PLAY</span></h2><div class="rule-grid"><article><b>01</b><div><h3>推進領地</h3><p>黑方往下、白方往上。碰到己方領地時落定，將方塊所在格子翻成自己的顏色。</p></div></article><article><b>02</b><div><h3>切斷，然後翻轉</h3><p>切斷敵方與基地的連結，整片孤立領地就會翻色。只有上下左右相連才算連結。</p></div></article><article><b>03</b><div><h3>拿下 75%</h3><p>率先佔領 75% 棋盤即獲勝；若你的顏色出現在全部 20 列，也能直接取勝。</p></div></article></div></section>
   </main>
   <footer class="site-credit">
     <span>FLIP BLOCKS · 基於 <a>xuan</a> 的想法 · 由 <a href="https://github.com/yuxzs" target="_blank" rel="noopener">yuxzs</a> 所做的原作</span><span class="site-credit-sep"> · </span><span>再由 <a href="https://github.com/luancs11" target="_blank" rel="noopener">Lu-An Chen</a> @ <a href="https://github.com/NYCU-Police/Flip-Blocks" target="_blank" rel="noopener">NYCU-Police</a> 接續開發及部署 · <a href="https://github.com/NYCU-Police/Flip-Blocks" target="_blank" rel="noopener">GitHub</a></span>

@@ -1,6 +1,6 @@
 # Flip Blocks / 翻轉方塊
 
-雙人領地爭奪：共用棋盤、推進方塊、切斷連結、翻轉顏色，率先佔領 70% 即獲勝。
+雙人領地爭奪：共用棋盤、推進方塊、切斷連結、翻轉顏色，率先佔領 75% 即獲勝。
 
 ## 立即遊玩
 
@@ -129,7 +129,7 @@ npm test
 | 軟降 | ↓ | S |
 | 硬降 | Enter | Space |
 
-棋盤為 10 × 20，含 I/O/T/S/Z/J/L。方塊落定與包圍會翻色，任一顏色達到 70% 佔領即結束。網頁版規則與操作見 [GitHub Pages 發佈說明](docs/github-pages.md)。更多說明見 [`FlipBlocksUnity/README.md`](FlipBlocksUnity/README.md)。
+棋盤為 10 × 20，含 I/O/T/S/Z/J/L。方塊落定與包圍會翻色，任一顏色達到 75% 佔領即結束。網頁版規則與操作見 [GitHub Pages 發佈說明](docs/github-pages.md)。更多說明見 [`FlipBlocksUnity/README.md`](FlipBlocksUnity/README.md)。
 
 macOS 建置入口為 `FlipBlocksUnity/Assets/Editor/BuildFlipBlocks.cs` 的 `BuildFlipBlocks.BuildMac`，輸出 `FlipBlocksUnityBuild/FlipBlocks.app`（已由 `.gitignore` 排除）。
 
