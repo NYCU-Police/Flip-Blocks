@@ -52,21 +52,86 @@ function attachConnections(wss, ctx) {
     dropSocket, send,
     roomOf, broadcast, claimSeat, resumeIfReady, recipients, seatTaken,
     beginMatch, stopInput, recordOutcome, matchActive, forfeitToLobby, lobbyDepart,
-    startReconnect, issueToken, isDraining
+    startReconnect, issueToken, isDraining, queue
   } = ctx;
   function reject(ws, message) {
     send(ws, { type: 'error', message });
     ws.close(1008);
   }
+  function roomQuota(ip) {
+    if (isDraining()) return { ok: false, message: '無法建立房間，請稍後再試。' };
+    if (rooms.size >= maxRooms) return { ok: false, message: '無法建立房間，請稍後再試。' };
+    const created = roomsByIp.get(ip);
+    if (created && created.size >= maxRoomsPerIp) {
+      rejected.rooms += 1;
+      return { ok: false, message: '無法建立房間，請稍後再試。' };
+    }
+    if (!allowWindow(createHits, ip, createWindowMs, createPerMin)) {
+      rejected.create += 1;
+      return { ok: false, message: '無法建立房間，請稍後再試。' };
+    }
+    return { ok: true };
+  }
+  function seatPair(hostWs, hostName, hostColor, guestWs, guestName) {
+    const check = roomQuota(hostWs.clientIp);
+    if (!check.ok) return check;
+    const room = createRoom(makeCode(rooms));
+    room.createdByIp = hostWs.clientIp;
+    rooms.set(room.code, room);
+    takeRoom(hostWs.clientIp, room.code);
+    if (hostColor === 2) { room.game.reset(2); room.game.state = 'ready'; }
+    const hostToken = issueToken();
+    const guestToken = issueToken();
+    claimSeat(room, hostWs, 0, hostToken, hostName);
+    claimSeat(room, guestWs, 1, guestToken, guestName);
+    hostWs.queued = false;
+    guestWs.queued = false;
+    send(hostWs, { type: 'joined', owner: 0, sessionToken: hostToken, code: room.code, name: hostName, role: 'player' });
+    send(guestWs, { type: 'joined', owner: 1, sessionToken: guestToken, code: room.code, name: guestName, role: 'player' });
+    broadcast(room);
+    return { ok: true };
+  }
+  function admitQueue(ws, name, color, clearIdle) {
+    if (queue.has(ws)) {
+      send(ws, { type: 'queued' });
+      return;
+    }
+    if (queue.countIp(ws.clientIp) >= queue.maxQueuePerIp) {
+      reject(ws, '無法配對，請稍後再試。');
+      return;
+    }
+    while (true) {
+      const partner = queue.peek();
+      if (partner && partner.ws.readyState !== WebSocket.OPEN) {
+        queue.remove(partner.ws);
+        continue;
+      }
+      if (!partner) {
+        const added = queue.enqueue(ws, name, color);
+        if (!added.ok) { reject(ws, '無法配對，請稍後再試。'); return; }
+        clearIdle();
+        send(ws, { type: 'queued' });
+        return;
+      }
+      queue.take();
+      const paired = seatPair(partner.ws, partner.name, partner.color, ws, name);
+      if (paired.ok) {
+        clearIdle();
+        return;
+      }
+      reject(partner.ws, paired.message);
+    }
+  }
   wss.on('connection', ws => {
     ws.joined = false; ws.seat = null; ws.roomCode = ''; ws.alive = true;
+    ws.queued = false;
     ws.messages = 0; ws.windowStart = Date.now(); ws.released = false;
     let idleTimer;
     function armIdle() {
       clearTimeout(idleTimer);
-      if (ws.joined) return;
+      if (ws.joined || ws.queued) return;
       idleTimer = setTimeout(() => {
-        if (ws.joined) return;
+        if (ws.joined || ws.queued) return;
         rejected.idle += 1;
         ws.close(1008, 'Idle');
       }, joinIdleMs);
@@ -105,6 +170,18 @@ function attachConnections(wss, ctx) {
           broadcast(room);
           return;
         }
+        if (msg.type === 'leave' && ws.queued) {
+          ws.released = true;
+          queue.remove(ws);
+          return;
+        }
+        if (msg.type === 'queue') {
+          const queuedName = parseName(msg.name);
+          if (!queuedName) { reject(ws, '暱稱需為 2–12 個字，且不可含控制字元。'); return; }
+          if (isDraining()) { reject(ws, '無法建立房間，請稍後再試。'); return; }
+          admitQueue(ws, queuedName, msg.color === 2 ? 2 : 1, () => clearTimeout(idleTimer));
+          return;
+        }
         if (msg.type !== 'join') { ws.close(1008, 'Invalid message'); return; }
         const name = parseName(msg.name);
         if (!name) { reject(ws, '暱稱需為 2–12 個字，且不可含控制字元。'); return; }
@@ -114,15 +191,8 @@ function attachConnections(wss, ctx) {
         }
         if (msg.role !== 'host' && !parseCode(msg.code)) { reject(ws, '房間代碼無效。'); return; }
         if (msg.role === 'host' && !parseCode(msg.code)) {
-          if (isDraining()) { reject(ws, '無法建立房間，請稍後再試。'); return; }
-          if (rooms.size >= maxRooms) { reject(ws, '無法建立房間，請稍後再試。'); return; }
-          const created = roomsByIp.get(ws.clientIp);
-          if (created && created.size >= maxRoomsPerIp) { rejected.rooms += 1; reject(ws, '無法建立房間，請稍後再試。'); return; }
-          if (!allowWindow(createHits, ws.clientIp, createWindowMs, createPerMin)) {
-            rejected.create += 1;
-            reject(ws, '無法建立房間，請稍後再試。');
-            return;
-          }
+          const quota = roomQuota(ws.clientIp);
+          if (!quota.ok) { reject(ws, quota.message); return; }
           const room = createRoom(makeCode(rooms));
           room.createdByIp = ws.clientIp;
           rooms.set(room.code, room);
@@ -204,6 +274,7 @@ function attachConnections(wss, ctx) {
     ws.on('close', () => {
       clearTimeout(idleTimer);
       dropSocket(ws.clientIp);
+      queue.remove(ws);
       if (ws.released) return;
       const room = roomOf(ws);
       if (!room) return;

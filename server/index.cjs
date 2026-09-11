@@ -7,10 +7,11 @@ const { openLeaderboard } = require('./leaderboard.cjs');
 const {
   RECONNECT_MS, ROOM_TTL_MS, MAX_ROOMS, RATE_LIMIT, MAX_CLIENTS,
   MAX_ROOMS_PER_IP, MAX_SOCKETS_PER_IP, CREATE_PER_MIN, HTTP_PER_MIN,
-  MAX_PAYLOAD, JOIN_IDLE_MS, STATS_MS,
+  MAX_PAYLOAD, JOIN_IDLE_MS, MAX_QUEUE_PER_IP, QUEUE_IDLE_MS, STATS_MS,
   envFlag, envInt, resolveClientIp, createAbuseState
 } = require('./limits.cjs');
 const { createRoomLife } = require('./rooms.cjs');
+const { createMatchQueue } = require('./queue.cjs');
 const { createRequestListener } = require('./http.cjs');
 const { createSender, attachUpgrade, attachConnections } = require('./ws.cjs');
 
@@ -30,6 +31,8 @@ function createServer({
   httpWindowMs = 60000,
   maxPayload = envInt('MAX_PAYLOAD', MAX_PAYLOAD, 256, 1024 * 1024),
   joinIdleMs = envInt('JOIN_IDLE_MS', JOIN_IDLE_MS, 1000, 600_000),
+  maxQueuePerIp = envInt('MAX_QUEUE_PER_IP', MAX_QUEUE_PER_IP, 1, 1000),
+  queueIdleMs = envInt('QUEUE_IDLE_MS', QUEUE_IDLE_MS, 1000, 86_400_000),
   statsMs = envInt('STATS_MS', STATS_MS, 0, 86_400_000),
   dataDir = process.env.DATA_DIR || path.join(process.cwd(), 'data')
 } = {}) {
@@ -46,6 +49,7 @@ function createServer({
   } = abuse;
   const board = openLeaderboard(dataDir);
   const send = createSender();
+  const queue = createMatchQueue({ maxQueuePerIp, queueIdleMs });
   const life = createRoomLife({
     rooms, tokens, reconnectMs, roomTtlMs, board, send, releaseRoom, pruneMaps
   });
@@ -59,12 +63,16 @@ function createServer({
   attachConnections(wss, {
     rooms, tokens, rejected, maxRooms, maxRoomsPerIp, createPerMin, createWindowMs,
     rateLimit, maxPayload, joinIdleMs, roomsByIp, createHits, allowWindow, takeRoom,
-    dropSocket, send, ...life, isDraining
+    dropSocket, send, ...life, isDraining, queue
   });
   let lastTick = performance.now();
   const tick = setInterval(() => {
     const now = performance.now(), dt = (now - lastTick) / 1000; lastTick = now;
     life.sweepRooms();
+    for (const ws of queue.sweepIdle()) {
+      send(ws, { type: 'error', message: '等待逾時，請重新配對。' });
+      ws.close(1008);
+    }
     for (const room of rooms.values()) {
       for (let i = 0; i < 2; i++) if (Date.now() > room.fastUntil[i]) room.fast[i] = false;
       for (let i = 0; i < 2; i++) if (room.reconnecting[i] && Date.now() >= room.reconnecting[i].deadline) life.timeoutReconnect(room, i);
@@ -99,6 +107,7 @@ function createServer({
     if (closed) return;
     closed = true;
     clearInterval(tick); clearInterval(heartbeat); if (stats) clearInterval(stats);
+    queue.drainAll();
     for (const ws of wss.clients) ws.terminate();
     await new Promise(resolve => wss.close(resolve));
     await new Promise(resolve => server.close(resolve));
@@ -106,6 +115,10 @@ function createServer({
   }
   async function drain(timeoutMs = 30000) {
     draining = true;
+    for (const ws of queue.drainAll()) {
+      send(ws, { type: 'error', message: '無法建立房間，請稍後再試。' });
+      ws.close(1008);
+    }
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       if (![...rooms.values()].some(room => life.matchActive(room))) break;
@@ -115,8 +128,11 @@ function createServer({
   }
   return {
     server, close, drain, isDraining,
-    leaderboard: board, rooms,
-    limits: { maxRooms, maxRoomsPerIp, maxSocketsPerIp, createPerMin, httpPerMin, maxPayload, maxClients, rateLimit }
+    leaderboard: board, rooms, queue,
+    limits: {
+      maxRooms, maxRoomsPerIp, maxSocketsPerIp, createPerMin, httpPerMin,
+      maxPayload, maxClients, rateLimit, maxQueuePerIp, queueIdleMs
+    }
   };
 }
 if (require.main === module) {
@@ -137,5 +153,5 @@ module.exports = {
   createServer, resolveClientIp,
   RECONNECT_MS, ROOM_TTL_MS, MAX_ROOMS, RATE_LIMIT,
   MAX_ROOMS_PER_IP, MAX_SOCKETS_PER_IP, CREATE_PER_MIN, HTTP_PER_MIN,
-  MAX_PAYLOAD, JOIN_IDLE_MS
+  MAX_PAYLOAD, JOIN_IDLE_MS, MAX_QUEUE_PER_IP, QUEUE_IDLE_MS
 };

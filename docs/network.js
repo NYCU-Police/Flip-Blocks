@@ -104,6 +104,7 @@
       this.sessionToken = ''; this.role = null; this.color = 1;
       this.name = ''; this.names = ['', '']; this.code = '';
       this.spectating = false; this.spectators = 0; this.spectatorNames = [];
+      this.queued = false;
       this.reconnect = null; this.reconnectUntil = 0; this.reconnectAttempt = 0;
       this.pendingReconnect = false; this.intentionalLeave = false;
       this.watchdog = 0; this.reconnectTimer = 0;
@@ -121,7 +122,8 @@
       this.active = true; this.role = role; this.color = opts.color === 2 ? 2 : 1;
       this.name = parseName(opts.name); this.code = parseCode(opts.code);
       this.spectating = role === 'spectate';
-      this.message = '正在連線…'; this.onChange();
+      this.queued = false;
+      this.message = role === 'queue' ? '正在配對對手…' : '正在連線…'; this.onChange();
       this.openSocket(false);
     }
     resumeSession() {
@@ -146,12 +148,13 @@
         if (this.socket === ws && Date.now() - this.lastMessage > 15000) ws.close();
       }, 1000);
       const timeout = setTimeout(() => {
-        if (this.socket === ws && this.owner === null && !this.pendingReconnect && !this.spectating) this.fail('連線逾時，請稍後再試。');
+        if (this.socket === ws && this.owner === null && !this.pendingReconnect && !this.spectating && !this.queued) this.fail('連線逾時，請稍後再試。');
         else if (this.socket === ws && this.pendingReconnect && this.owner === null) ws.close();
       }, 8000);
       ws.onopen = () => {
         if (this.socket !== ws) return;
         if (reclaim && this.sessionToken) this.send({ type: 'reconnect', sessionToken: this.sessionToken, code: this.code });
+        else if (this.role === 'queue') this.send({ type: 'queue', name: this.name, color: this.color });
         else this.send({ type: 'join', role: this.role, color: this.color, name: this.name, code: this.code });
       };
       ws.onmessage = event => {
@@ -159,12 +162,21 @@
         this.lastMessage = Date.now();
         let data; try { data = JSON.parse(event.data); } catch { return; }
         if (data.type === 'error') { this.fail(data.message); return; }
+        if (data.type === 'heartbeat') return;
+        if (data.type === 'queued') {
+          clearTimeout(timeout);
+          this.queued = true;
+          this.message = '正在配對對手…';
+          this.onChange();
+          return;
+        }
         if (data.type === 'joined') {
           clearTimeout(timeout);
           this.owner = data.owner === 0 || data.owner === 1 ? data.owner : null;
           this.spectating = data.role === 'spectate';
           this.code = parseCode(data.code) || this.code;
           this.pendingReconnect = false;
+          this.queued = false;
           this.reconnectAttempt = 0;
           if (data.sessionToken) {
             this.sessionToken = data.sessionToken;
@@ -248,6 +260,7 @@
       const ws = this.socket; this.socket = null;
       if (ws) { ws.onclose = null; ws.close(); }
       this.active = false; this.owner = null; this.connected = [false, false]; this.ready = [false, false];
+      this.queued = false;
       this.reconnect = null; this.pendingReconnect = false; this.reconnectUntil = 0; this.reconnectAttempt = 0;
       this.spectating = false; this.spectators = 0; this.spectatorNames = [];
       this.names = ['', ''];

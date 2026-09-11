@@ -52,17 +52,20 @@
         </button>
         <button type="button" class="mode-card" id="pick-online">
           <strong>線上對戰</strong>
-          <span>建立房間，或輸入 6 位代碼加入</span>
+          <span>快速配對，或輸入代碼加入</span>
         </button>
       </div>
     </section>
     <div id="play-stage" hidden>
       <section class="online-panel" id="online-panel" hidden>
         <h2 class="online-heading">線上對戰</h2>
-        <p class="online-lead">先輸入暱稱，再建立房間或加入朋友的房間。</p>
+        <p class="online-lead">先輸入暱稱，再快速配對或建立房間。</p>
         <div class="network-address"><label for="nickname">暱稱</label><input id="nickname" type="text" maxlength="12" minlength="2" placeholder="2–12 個字" autocomplete="nickname" spellcheck="false"></div>
         <div class="online-actions">
-          <button class="host-btn" id="host" type="button">建立房間</button>
+          <div class="queue-row">
+            <button class="host-btn" id="queue" type="button">快速配對</button>
+            <button class="quiet" id="host" type="button">建立房間</button>
+          </div>
           <div class="join-row">
             <label for="room-code-input">房間代碼</label>
             <input id="room-code-input" type="text" maxlength="6" placeholder="ABC123" autocomplete="off" spellcheck="false" autocapitalize="characters" inputmode="text">
@@ -83,7 +86,7 @@
           <button class="quiet" id="leave" type="button" hidden>離開房間</button>
         </div>
         <p id="watchers" class="session-record" hidden>觀戰 0 人</p>
-        <p id="network-status" role="status">輸入暱稱後，建立房間或加入朋友的房間。</p>
+        <p id="network-status" role="status">輸入暱稱後，快速配對或建立房間。</p>
         <details class="leaderboard-panel" id="leaderboard-panel"><summary>匿名排行榜 <span>勝場前 20</span></summary><ol id="leaderboard-list"><li class="muted">尚無連線對局紀錄</li></ol></details>
         <details class="advanced-host" id="advanced-host">
           <summary>進階：自架主機</summary>

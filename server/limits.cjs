@@ -11,6 +11,8 @@ const CREATE_PER_MIN = 5;
 const HTTP_PER_MIN = 60;
 const MAX_PAYLOAD = 4096;
 const JOIN_IDLE_MS = 30000;
+const MAX_QUEUE_PER_IP = 2;
+const QUEUE_IDLE_MS = 5 * 60 * 1000;
 const STATS_MS = 10 * 60 * 1000;
 
 function envFlag(name, fallback = false) {
@@ -144,6 +146,6 @@ function createAbuseState({
 module.exports = {
   RECONNECT_MS, ROOM_TTL_MS, MAX_ROOMS, RATE_LIMIT, MAX_CLIENTS,
   MAX_ROOMS_PER_IP, MAX_SOCKETS_PER_IP, CREATE_PER_MIN, HTTP_PER_MIN,
-  MAX_PAYLOAD, JOIN_IDLE_MS, STATS_MS,
+  MAX_PAYLOAD, JOIN_IDLE_MS, MAX_QUEUE_PER_IP, QUEUE_IDLE_MS, STATS_MS,
   envFlag, envInt, firstHeader, normalizeIp, resolveClientIp, pruneHits, createAbuseState
 };

@@ -20,10 +20,11 @@
   function lobbyStatus() {
     if(network.message) return network.message;
     if(!onlineMode) return '';
-    if(!network.active) return '輸入暱稱後，建立房間或加入朋友的房間。';
+    if(!network.active) return '輸入暱稱後，快速配對或建立房間。';
     const code=network.code||'';
     const names=network.names||['',''];
     const secs=remainSecs();
+    if(network.queued) return network.message || '正在配對對手…';
     if(network.pendingReconnect) return '正在重新連線…';
     if(network.reconnect) return `對手斷線，${secs} 秒內可重連…`;
     if(network.spectating) return `觀戰中 · ${names[0]||'玩家一'} vs ${names[1]||'玩家二'}`;
@@ -111,16 +112,17 @@
     const joined=network.owner!==null, both=network.connected.every(Boolean);
     $('mode-label').textContent=network.active?(network.spectating?'觀戰中':`線上房間 ${network.code||''}`):
       (onlineMode?'線上對戰':(playMode==='ai'?'單人對戰 AI':'同機雙人對戰'));
-    $('host').disabled=network.active;$('join').disabled=network.active;$('spectate').disabled=network.active;
+    $('host').disabled=network.active;$('queue').disabled=network.active;$('join').disabled=network.active;$('spectate').disabled=network.active;
     $('join-ip').disabled=network.active;$('server-address').disabled=network.active;
     $('nickname').disabled=network.active;$('room-code-input').disabled=network.active;
-    $('leave').hidden=!network.active;$('ready').hidden=!joined||network.spectating||game.state!=='ready'||network.reconnect||network.pendingReconnect;
+    $('leave').hidden=!network.active;$('leave').textContent=network.queued?'取消配對':'離開房間';
+    $('ready').hidden=!joined||network.spectating||game.state!=='ready'||network.reconnect||network.pendingReconnect;
     $('ready').textContent=network.ready[network.owner]?'取消準備':'我準備好了';
     $('network-status').textContent=lobbyStatus();
-    $('room-share').hidden=!network.active||!network.code;
+    $('room-share').hidden=!network.active||!network.code||network.queued;
     $('room-code-display').textContent=network.code||'';
     const watchers=$('watchers');
-    watchers.hidden=!network.active;
+    watchers.hidden=!network.active||network.queued||!network.code;
     const extra=network.spectatorNames?.length?`：${network.spectatorNames.join('、')}`:'';
     watchers.textContent=`觀戰 ${network.spectators||0} 人${extra}`;
     for(let owner=0;owner<2;owner++) {
@@ -143,7 +145,7 @@
     if(!name) {network.message='請輸入 2–12 字暱稱。';networkChanged();return;}
     FlipNetwork.saveName(name);
     const code=FlipNetwork.parseCode($('room-code-input').value);
-    if(role!=='host'&&!code) {network.message='請輸入 6 位房間代碼。';networkChanged();return;}
+    if(role!=='host'&&role!=='queue'&&!code) {network.message='請輸入 6 位房間代碼。';networkChanged();return;}
     network.connect(role,{color:Number(document.querySelector('input[name="color"]:checked').value),name,code});
   }
   function shareUrl(code) {
@@ -171,6 +173,7 @@
   $('pick-online').addEventListener('click',()=>enterMode('online'));
   $('back-modes').addEventListener('click',exitMode);
   $('host').addEventListener('click',()=>connect('host'));
+  $('queue').addEventListener('click',()=>connect('queue'));
   $('join').addEventListener('click',()=>connect('guest'));
   $('spectate').addEventListener('click',()=>connect('spectate'));
   $('ready').addEventListener('click',()=>network.send({type:'ready'}));
@@ -402,7 +405,7 @@
       cueMatch(counts);previousLocks=locked;
     }
     if(game.state==='over') cueMatch(counts);
-    const stateKey=JSON.stringify([game.state,network.active,network.owner,network.connected,network.ready,game.sides[0].color,remainSecs(),network.pendingReconnect,network.message,playMode,selectedDifficulty(),selectedScheme(),network.code,network.names,network.spectating,network.spectators,onlineMode,$('play-stage').hidden]);
+    const stateKey=JSON.stringify([game.state,network.active,network.owner,network.connected,network.ready,game.sides[0].color,remainSecs(),network.pendingReconnect,network.queued,network.message,playMode,selectedDifficulty(),selectedScheme(),network.code,network.names,network.spectating,network.spectators,onlineMode,$('play-stage').hidden]);
     if(stateKey===previousState) return;
     previousState=stateKey;
     const ready=game.state==='ready', paused=game.state==='paused', over=game.state==='over';
@@ -461,10 +464,10 @@
       $('ready').hidden=network.owner===null||!ready;
       if(ready) {
         clearInput();
-        $('overlay-title').textContent=network.spectating?`觀戰 ${network.code}`:(network.owner===null?'正在連線…':`房間 ${network.code}`);
+        $('overlay-title').textContent=network.spectating?`觀戰 ${network.code}`:(network.queued?'正在配對對手…':(network.owner===null?'正在連線…':`房間 ${network.code}`));
         $('overlay-description').textContent=network.spectating?`${network.names[0]||'玩家一'} vs ${network.names[1]||'玩家二'}`:
-          (network.connected.every(Boolean)?'對手已加入，雙方按準備開始':`等待對手加入…（代碼 ${network.code}）`);
-        $('start').textContent=network.spectating?'觀戰中':'房主開始對戰';
+          (network.queued?'等待另一位玩家加入配對。':(network.connected.every(Boolean)?'對手已加入，雙方按準備開始':`等待對手加入…（代碼 ${network.code}）`));
+        $('start').textContent=network.spectating?'觀戰中':(network.queued?'配對中':'房主開始對戰');
         $('start').disabled=network.spectating||network.owner!==0||!network.connected.every(Boolean)||!network.ready.every(Boolean);
         $('overlay-note').textContent=network.spectating?'觀戰無法操作':'準備好後按「我準備好了」';
         $('match-status').textContent=network.spectating?'觀戰中':lobbyStatus();
